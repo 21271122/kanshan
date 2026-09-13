@@ -30,7 +30,8 @@
     ".next/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next-oauth-check/types/**/*.ts",
-    ".next-verify-fav/types/**/*.ts"
+    ".next-verify-fav/types/**/*.ts",
+    ".next-revert/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
