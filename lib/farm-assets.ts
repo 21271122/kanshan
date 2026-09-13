@@ -13,13 +13,13 @@ const gif = (src: string, fallback: string, loop: boolean, durationMs?: number):
 const crops: FarmAssetManifest["crops"] = Object.fromEntries(cropFamilies.map(({ id, name }) => [
   id, Object.fromEntries((["seed", "sprout", "mature"] as const).map((stage, index) => [stage, {
     src: "/assets/farm/crops/" + id + "/" + stage + ".webp",
-    available: true, format: "webp", width: 512, height: 512, presentation: "illustration",
+    available: false, format: "webp", width: 512, height: 512, presentation: "illustration",
     alt: name + " · " + ["种植期", "生长期", "成熟期"][index],
   }])) as Record<Stage, AssetRef>,
 ]));
 crops.default = crops.cabbage;
 const background = (file: string, width: number, height: number): AssetRef => ({
-  src: "/assets/farm/scenes/" + file, available: true, format: "webp", width, height,
+  src: "/assets/farm/scenes/" + file, available: false, format: "webp", width, height,
   alt: "秋日林间的看山沃野",
   portrait: { src: "/assets/farm/scenes/autumn-mobile.webp", width: 900, height: 1600 },
 });

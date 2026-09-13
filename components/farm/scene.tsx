@@ -3,7 +3,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { assetForCrop, farmAssets, mascotActionForEvent, type FarmZone, type AssetRef } from "../../lib/farm-assets";
 import { growthOf, stageOf, type Crop, type FarmEvent, type Stage } from "../../lib/farm/model";
 import { Icon } from "./icon";
-import { cropFamilyName } from "../../lib/farm/crop-families";
 
 export function useReducedMotion() {
   const [reduced, setReduced] = useState(true);
@@ -64,7 +63,7 @@ export function CropDrawing({ stage }: { stage: Stage }) {
 export function Plot({ index, crop, now, onClick, event }: { index: number; crop?: Crop; now: number; onClick: () => void; event: FarmEvent | null }) {
   const stage = crop ? stageOf(crop, now) : "empty";
   const activeEvent = event?.plot === index ? event : null;
-  const name = crop ? cropFamilyName(crop.assetFamily) : "留一格给惊喜";
+  const name = crop ? "回忆作物" : "留一格给惊喜";
   const asset = crop ? assetForCrop(crop.assetFamily, stage as Stage) : undefined;
   return <button className={"plot plot-" + stage + (asset?.presentation === "illustration" ? " plot-illustration" : "")} onClick={onClick}
     aria-label={index + 1 + " 号地 · " + (stage === "empty" ? "空地，点击播种" : stage === "mature" ? "成熟，查看收获预览" : stage === "sprout" ? "幼苗，查看线索" : "种子，查看成长") + (crop ? " · " + name : "")}>

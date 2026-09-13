@@ -4,7 +4,6 @@ import { ContentItem, Crop, FarmState, Mode, growthOf, remainingMs, roundProgres
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
 import { AssetImage, CropDrawing, zones } from "./scene";
-import { cropFamilies, cropFamilyName } from "../../lib/farm/crop-families";
 import { assetForCrop } from "../../lib/farm-assets";
 import type { useFarm } from "./use-farm";
 export type FarmController = ReturnType<typeof useFarm>;
@@ -14,7 +13,7 @@ export function CropPanel({ crop, item, now, mode, onClose, onCare, onUproot, on
   const seconds = Math.ceil(remainingMs(crop, now) / 1000);
   const [confirmUproot, setConfirmUproot] = useState(false), [openError, setOpenError] = useState(false);
   return <Dialog title={mature ? "一段回忆，长好了" : stage === "sprout" ? "有些线索冒出了头" : "让故事先发一会儿芽"} eyebrow={String(crop.plot + 1).padStart(2, "0") + " 号地 · " + (mature ? "收获预览" : "刘看山正在照料")} onClose={onClose}>
-    <div className={"crop-preview crop-preview-illustration preview-" + stage}><AssetImage asset={assetForCrop(crop.assetFamily, stage)} fallback={<CropDrawing stage={stage} />} /><span>{cropFamilyName(crop.assetFamily)} · {mature ? "成熟" : stage === "sprout" ? "生长" : "种植"}</span></div>
+    <div className={"crop-preview crop-preview-illustration preview-" + stage}><AssetImage asset={assetForCrop(crop.assetFamily, stage)} fallback={<CropDrawing stage={stage} />} /><span>{mature ? "成熟" : stage === "sprout" ? "生长" : "种植"}</span></div>
     <p className="source-line"><Icon name="folder" />来自「{item.favlist}」</p>
     <h3 className="memory-title">{mature ? item.title : stage === "sprout" ? item.hint : "完整故事还藏在土里。"}</h3>
     {stage !== "seed" && <div className="tags"><span>{item.type}</span>{item.tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
@@ -63,7 +62,7 @@ export function LogPanel({ farm, items, mode, now, onClose, onNewRound }: { farm
   </Dialog>;
 }
 export function HelpPanel({ onClose }: { onClose: () => void }) {
-  return <Dialog title="来这里，不用赶时间" eyebrow="看山的农场小手册" onClose={onClose}><div className="help-steps">{[{ icon: "folder" as const, title: "选好回忆的来处", text: "勾选收藏夹，或导入以前存下的知乎回答和文章。" }, { icon: "leaf" as const, title: "空地一按，种下惊喜", text: "随机挑一篇未重温的收藏，发芽后会慢慢透露线索。" }, { icon: "spark" as const, title: "长好了，再见一面", text: "点击成熟果实预览。打开原帖才计入收获，不要求读完。" }].map(step => <div key={step.title}><span><Icon name={step.icon} /></span><div><h3>{step.title}</h3><p>{step.text}</p></div></div>)}</div><div className="season-plants" aria-label="秋季五种植物">{cropFamilies.map(family => <figure key={family.id}><AssetImage asset={assetForCrop(family.id, "mature")} fallback={<CropDrawing stage="mature"/>}/><figcaption>{family.name}</figcaption></figure>)}</div><p className="fine-print">每次播种随机遇见一种秋季植物。植物的外观不会改变收藏抽取概率；同一株的品种会一直保留到收获。</p><div className="gentle-note"><Icon name="water" /><p>你不在的时候，看山也会照料。<br/>没有枯萎、打卡或错过奖励。</p></div><p className="fine-print">演示作物约 80 秒成熟；个人农场约 10 分钟。一次浇水可缩短约 10%，关闭页面也会继续成长。</p></Dialog>;
+  return <Dialog title="来这里，不用赶时间" eyebrow="看山的农场小手册" onClose={onClose}><div className="help-steps">{[{ icon: "folder" as const, title: "选好回忆的来处", text: "勾选收藏夹，或导入以前存下的知乎回答和文章。" }, { icon: "leaf" as const, title: "空地一按，种下惊喜", text: "随机挑一篇未重温的收藏，发芽后会慢慢透露线索。" }, { icon: "spark" as const, title: "长好了，再见一面", text: "点击成熟果实预览。打开原帖才计入收获，不要求读完。" }].map(step => <div key={step.title}><span><Icon name={step.icon} /></span><div><h3>{step.title}</h3><p>{step.text}</p></div></div>)}</div><div className="gentle-note"><Icon name="water" /><p>你不在的时候，看山也会照料。<br/>没有枯萎、打卡或错过奖励。</p></div><p className="fine-print">演示作物约 80 秒成熟；个人农场约 10 分钟。一次浇水可缩短约 10%，关闭页面也会继续成长。</p></Dialog>;
 }
 export function MapPanel({ onClose }: { onClose: () => void }) {
   return <Dialog title="沃野的远处，还有风景" eyebrow="农场地图" onClose={onClose}><div className="mini-map"><Icon name="map" /><span>山在远处，田在脚下</span></div><div className="zone-list">{zones.map(zone => <div key={zone.id}><Icon name={zone.unlocked ? "leaf" : "lock"} /><span><strong>{zone.name}</strong><small>{zone.unlocked ? zone.plotCount + " 块地 · 正在照料" : "未来区域 · 暂未开放"}</small></span>{zone.unlocked && <span className="tag">当前</span>}</div>)}</div><p className="fine-print">现在先照顾好这十块地。未来的新区域会单独切换，不会挤占这片农场。</p></Dialog>;
