@@ -1,4 +1,3 @@
-import { chooseCropFamily } from "./crop-families";
 export type Stage = "seed" | "sprout" | "mature";
 export type ContentItem = { id: string; favlist: string; title: string; hint: string; tags: string[]; url: string; type: string };
 export type Crop = { id: string; plot: number; zoneId: string; itemId: string; plantedAt: number; durationMs: number; careSeconds: number; caredAt?: number; assetFamily?: string };
@@ -84,8 +83,8 @@ export function reduceFarm(farm: FarmState, action: FarmAction, items: ContentIt
       return { ...farm, crops: farm.crops.map(c => ({ ...c, plantedAt: c.plantedAt - Math.max(0, action.milliseconds) })) };
   }
 }
-export function makeCrop(plot: number, itemId: string, now: number, mode: Mode, random = Math.random(), appearanceRandom = Math.random()): Crop {
-  return { id: crypto.randomUUID(), plot, itemId, zoneId: "main-field", plantedAt: now, durationMs: Math.round((mode === "demo" ? DEMO_DURATION : 600_000) * (.9 + random * .2)), careSeconds: 0, assetFamily: chooseCropFamily(appearanceRandom) };
+export function makeCrop(plot: number, itemId: string, now: number, mode: Mode, random = Math.random()): Crop {
+  return { id: crypto.randomUUID(), plot, itemId, zoneId: "main-field", plantedAt: now, durationMs: Math.round((mode === "demo" ? DEMO_DURATION : 600_000) * (.9 + random * .2)), careSeconds: 0, assetFamily: "default" };
 }
 
 

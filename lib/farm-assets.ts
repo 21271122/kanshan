@@ -1,5 +1,4 @@
 import type { Stage } from "./farm/model";
-import { cropFamilies, normalizeCropFamily } from "./farm/crop-families";
 export type AssetRef = { src: string; available?: boolean; format: "png" | "gif" | "webp"; width: number; height: number; alt?: string; fallback?: string; durationMs?: number; loop?: boolean; presentation?: "sprite" | "illustration"; portrait?: { src: string; width: number; height: number } };
 export type FarmAssetManifest = {
   scenes: { main: AssetRef; welcome?: AssetRef; evening?: AssetRef; lockedField?: AssetRef };
@@ -10,14 +9,7 @@ export type FarmAssetManifest = {
 };
 const png = (src: string, alt?: string): AssetRef => ({ src, available: false, format: "png", width: 256, height: 256, alt });
 const gif = (src: string, fallback: string, loop: boolean, durationMs?: number): AssetRef => ({ src, available: false, format: "gif", width: 320, height: 320, fallback, loop, durationMs });
-const crops: FarmAssetManifest["crops"] = Object.fromEntries(cropFamilies.map(({ id, name }) => [
-  id, Object.fromEntries((["seed", "sprout", "mature"] as const).map((stage, index) => [stage, {
-    src: "/assets/farm/crops/" + id + "/" + stage + ".webp",
-    available: false, format: "webp", width: 512, height: 512, presentation: "illustration",
-    alt: name + " · " + ["种植期", "生长期", "成熟期"][index],
-  }])) as Record<Stage, AssetRef>,
-]));
-crops.default = crops.cabbage;
+const crops: FarmAssetManifest["crops"] = { default: { seed: png("/assets/farm/crops/default/seed.png"), sprout: png("/assets/farm/crops/default/sprout.png"), mature: png("/assets/farm/crops/default/mature.png") } };
 const background = (file: string, width: number, height: number): AssetRef => ({
   src: "/assets/farm/scenes/" + file, available: false, format: "webp", width, height,
   alt: "秋日林间的看山沃野",
@@ -37,7 +29,7 @@ export const farmAssets: FarmAssetManifest = {
   effects: { water: png("/assets/farm/effects/water.png"), sparkle: png("/assets/farm/effects/sparkle.png"), harvest: { ...gif("/assets/farm/effects/harvest.gif", "/assets/farm/effects/sparkle.png", false, 900), width: 256, height: 256 } }
 };
 export function assetForCrop(family: string | undefined, stage: Stage): AssetRef {
-  return (farmAssets.crops[family ?? "default"] ?? farmAssets.crops[normalizeCropFamily(family)])[stage];
+  return (farmAssets.crops[family ?? "default"] ?? farmAssets.crops.default)[stage];
 }
 export function resolveAsset(ref: AssetRef, reduceMotion = false): string {
   return reduceMotion && ref.fallback ? ref.fallback : ref.src;
