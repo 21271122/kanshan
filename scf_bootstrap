@@ -1,0 +1,5 @@
+#!/bin/sh
+# CloudBase HTTP 云函数启动入口。该文件必须保留 LF 换行且不带扩展名。
+export PORT=9000
+export NODE_ENV=production
+npm start
