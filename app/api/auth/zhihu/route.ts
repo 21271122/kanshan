@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
+import { randomBytes } from "node:crypto";
 
-/**
- * 真实部署时在此处生成 state、写入 HttpOnly Cookie，并跳转知乎 OAuth 授权页。
- * Demo 没有密钥时不能伪造授权，因此给出明确提示而不暴露任何凭据。
- */
-export async function GET() {
-  if (!process.env.ZHIHU_OAUTH_APP_ID || !process.env.ZHIHU_OAUTH_REDIRECT_URI) {
-    return NextResponse.json(
-      { error: "尚未配置知乎 OAuth。请在 .env.local 或 CloudBase 环境变量中填写配置。" },
-      { status: 503 },
-    );
+export async function GET(request: Request) {
+  const appId = process.env.ZHIHU_OAUTH_APP_ID, redirectUri = process.env.ZHIHU_OAUTH_REDIRECT_URI;
+  if (!appId || !process.env.ZHIHU_OAUTH_APP_KEY || !redirectUri) {
+    return NextResponse.json({ error: "知乎登录尚未配置完整。需要服务端配置 ZHIHU_OAUTH_APP_ID、ZHIHU_OAUTH_APP_KEY、ZHIHU_OAUTH_REDIRECT_URI；Access Secret 不能替代 OAuth 应用凭证。" }, { status: 503 });
   }
-  return NextResponse.json({ error: "OAuth Gateway 待接入 zhihu-cli skill 后启用。" }, { status: 501 });
+  const state = randomBytes(24).toString("base64url");
+  const response = NextResponse.redirect(new URL("https://openapi.zhihu.com/authorize?" + new URLSearchParams({
+    redirect_uri: redirectUri, app_id: appId, response_type: "code", state,
+  }).toString()));
+  response.cookies.set("kanshan_oauth_state", state, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 600, path: "/" });
+  response.cookies.set("kanshan_oauth_return", new URL(request.url).searchParams.get("returnTo") === "personal" ? "personal" : "demo", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 600, path: "/" });
+  return response;
 }
+

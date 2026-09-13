@@ -1,0 +1,25 @@
+import type { ReactNode } from "react";
+export type IconName = "leaf" | "water" | "spark" | "arrow" | "check" | "clock" | "book" | "settings" | "map" | "close" | "help" | "folder" | "sun" | "shovel" | "external" | "lock" | "download";
+const shapes: Record<IconName, ReactNode> = {
+  leaf: <><path d="M20 3C9 3 3 8 4 15s11 7 14-2c1-3 2-6 2-10Z"/><path d="M4 21 15 10"/></>,
+  water: <path d="M12 3c-2 4-7 8-7 12a7 7 0 0 0 14 0c0-4-5-8-7-12Z"/>,
+  spark: <><path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4Z"/><path d="m20 2 0 4m-2-2h4"/></>,
+  arrow: <><path d="M4 12h16m-6-6 6 6-6 6"/></>,
+  check: <path d="m5 12 4 4L19 6"/>,
+  clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+  book: <><path d="M4 4h7l1 2 1-2h7v15h-7l-1 1-1-1H4Z"/><path d="M12 6v14"/></>,
+  settings: <><path d="m9 3-1 3-3 1-2 3 2 2v3l3 2 1 4h6l1-4 3-2v-3l2-2-2-3-3-1-1-3Z"/><circle cx="12" cy="12" r="3"/></>,
+  map: <><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Z"/><path d="M9 3v16m6-14v16"/></>,
+  close: <path d="m6 6 12 12M6 18 18 6"/>,
+  help: <><circle cx="12" cy="12" r="9"/><path d="M9 8a3 3 0 0 1 6 1c0 2-3 2-3 5m0 3h.01"/></>,
+  folder: <path d="M3 6h7l2 3h9v11H3Zm0 0V4h7l2 2h8v3"/>,
+  sun: <><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/></>,
+  shovel: <><path d="m16 3 5 5-2 2-5-5ZM16 8l-6 6m-3-2 5 5-5 4-4-4Z"/></>,
+  external: <><path d="M14 3h7v7m0-7L10 14"/><path d="M10 4H4v16h16v-6"/></>,
+  lock: <><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4m-4 5v2"/></>,
+  download: <><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/></>
+};
+export function Icon({ name, className = "" }: { name: IconName; className?: string }) {
+  return <svg className={"icon " + className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{shapes[name]}</svg>;
+}
+
