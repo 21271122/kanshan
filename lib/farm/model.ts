@@ -1,4 +1,6 @@
 export type Stage = "seed" | "sprout" | "mature";
+export type Season = "autumn" | "spring";
+export type SeasonMode = "auto" | "manual";
 export type ContentItem = { id: string; favlist: string; title: string; hint: string; tags: string[]; url: string; type: string };
 export type Crop = { id: string; plot: number; zoneId: string; itemId: string; plantedAt: number; durationMs: number; careSeconds: number; caredAt?: number; assetFamily?: string };
 export type HarvestEntry = { id: string; item: ContentItem; at: number | null; round: number; assetFamily?: string };
@@ -6,7 +8,7 @@ export type FarmState = { entered: boolean; achievements: string[]; sources: str
 export type Mode = "demo" | "personal";
 export type FavoritePoolEntry = { id: string; url: string; title: string; favlist: string; type: string; hint: string; tags: string[] };
 export type FavoriteFolder = { token: string; title: string; total: number; urls: string[]; fetchedAt: number };
-export type Workspace = { version: 2; mode: Mode; demo: FarmState; personal: FarmState; personalItems: ContentItem[]; favoriteFolders: FavoriteFolder[]; favoritePool: FavoritePoolEntry[]; consumedUrls: string[] };
+export type Workspace = { version: 2; mode: Mode; demo: FarmState; personal: FarmState; personalItems: ContentItem[]; favoriteFolders: FavoriteFolder[]; favoritePool: FavoritePoolEntry[]; consumedUrls: string[]; seasonMode: SeasonMode; season: Season; welcomeSeason: Season };
 export type FarmEvent = { type: "PLANT" | "CARE" | "MATURE" | "HARVEST" | "UPROOT"; plot: number; at: number };
 export const PLOT_COUNT = 10;
 export const DEMO_DURATION = 80_000;
@@ -83,8 +85,9 @@ export function reduceFarm(farm: FarmState, action: FarmAction, items: ContentIt
       return { ...farm, crops: farm.crops.map(c => ({ ...c, plantedAt: c.plantedAt - Math.max(0, action.milliseconds) })) };
   }
 }
-export function makeCrop(plot: number, itemId: string, now: number, mode: Mode, random = Math.random()): Crop {
-  const families = ["cabbage", "radish", "morningGlory", "cauliflower", "grape", "peaShoots"];
+export function seasonForDate(date = new Date()): Season { const month = date.getMonth() + 1; return month >= 3 && month <= 8 ? "spring" : "autumn"; }
+export function makeCrop(plot: number, itemId: string, now: number, mode: Mode, random = Math.random(), season: Season = "autumn"): Crop {
+  const families = season === "spring" ? ["spring-spinach", "spring-strawberry", "spring-pansy", "spring-tomato", "spring-pea-shoot"] : ["autumn-cabbage", "autumn-radish", "autumn-morning-glory", "autumn-cauliflower", "autumn-grape", "autumn-pea-shoot"];
   const family = families[Math.min(families.length - 1, Math.floor(Math.max(0, Math.min(.999999, Math.random())) * families.length))];
   return { id: crypto.randomUUID(), plot, itemId, zoneId: "main-field", plantedAt: now, durationMs: Math.round((mode === "demo" ? DEMO_DURATION : 600_000) * (.9 + random * .2)), careSeconds: 0, assetFamily: family };
 }

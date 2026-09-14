@@ -2,7 +2,7 @@
 import { durationForEvent } from "../../lib/farm-assets";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { demoItems, mergeCollectionItems } from "../../lib/farm/catalog";
-import { DEMO_DURATION, FarmAction, FarmEvent, Mode, emptyFarm, eligibleItems, makeCrop, reduceFarm, roundProgress, stageOf, type ContentItem, type Workspace } from "../../lib/farm/model";
+import { DEMO_DURATION, FarmAction, FarmEvent, Mode, emptyFarm, eligibleItems, makeCrop, reduceFarm, roundProgress, stageOf, seasonForDate, type ContentItem, type Workspace, type Season, type SeasonMode } from "../../lib/farm/model";
 import { LEGACY_KEY, STORAGE_KEY, favoritesStorageKey, initialPersonalWorkspace, initialWorkspace, personalStorageKey, restorePersonalWorkspace, restoreWorkspace } from "../../lib/farm/storage";
 
 type Auth = { authenticated: boolean; user?: { id: string; name: string; avatar?: string }; sessionId?: string };
@@ -120,10 +120,11 @@ export function useFarm() {
 
   const mode = workspace.mode, farm = workspace[mode], items = mode === "demo" ? demoItems : workspace.favoritePool.filter(i => !workspace.consumedUrls.includes(i.url));
   useEffect(() => { if (!ready || !farm.entered) return; const w = current.current, catalog = w.mode === "demo" ? demoItems : w.favoritePool; const next = reduceFarm(w[w.mode], { type: "CHECK_ACHIEVEMENTS", now }, catalog); if (next !== w[w.mode]) commit({ ...w, [w.mode]: next }); }, [ready, now, farm, commit]);
-  useEffect(() => { if (!ready || !now) return; const mature = farm.crops.filter(c => stageOf(c, now) === "mature"); const found = mature.find(c => !seenMature.current.has(mode + c.id)); mature.forEach(c => seenMature.current.add(mode + c.id)); if (found) { setEvent({ type: "MATURE", plot: found.plot, at: Date.now() }); setNotice("有一段回忆成熟了。它会一直等你，随时来收获。"); } }, [farm.crops, farm.entered, mode, ready, now]);
+  useEffect(() => { if (!ready || !now) return; if (current.current.seasonMode === "auto") { const nextSeason = seasonForDate(new Date(now)); if (nextSeason !== current.current.season) commit({ ...current.current, season: nextSeason, welcomeSeason: nextSeason }); } const mature = farm.crops.filter(c => stageOf(c, now) === "mature"); const found = mature.find(c => !seenMature.current.has(mode + c.id)); mature.forEach(c => seenMature.current.add(mode + c.id)); if (found) { setEvent({ type: "MATURE", plot: found.plot, at: Date.now() }); setNotice("有一段回忆成熟了。它会一直等你，随时来收获。"); } }, [farm.crops, farm.entered, mode, ready, now]);
 
   function dispatch(action: FarmAction) { const w = current.current, catalog = w.mode === "demo" ? demoItems : w.favoritePool; const nextFarm = reduceFarm(w[w.mode], action, catalog); if (nextFarm === w[w.mode]) return false; commit({ ...w, [w.mode]: nextFarm }); return true; }
-  function start(target: Mode = current.current.mode) { const w = current.current, catalog = target === "demo" ? demoItems : w.favoritePool; const state = w[target]; const first = target === "demo" ? eligibleItems(state, catalog)[0] : undefined; const guide = first ? { ...makeCrop(0, first.id, Date.now(), target, .5), plantedAt: Date.now() - DEMO_DURATION - 1000 } : undefined; commit({ ...w, mode: target, [target]: reduceFarm(state, { type: "ENTER", guide }, catalog) }); }
+  function start(target: Mode = current.current.mode) { const w = current.current, catalog = target === "demo" ? demoItems : w.favoritePool; const state = w[target]; const first = target === "demo" ? eligibleItems(state, catalog)[0] : undefined; const guide = first ? { ...makeCrop(0, first.id, Date.now(), target, .5, w.season), plantedAt: Date.now() - DEMO_DURATION - 1000 } : undefined; commit({ ...w, mode: target, [target]: reduceFarm(state, { type: "ENTER", guide }, catalog) }); }
+  function setSeasonMode(mode: SeasonMode, season?: Season) { const w = current.current; const nextSeason = mode === "auto" ? seasonForDate() : (season ?? w.season); commit({ ...w, seasonMode: mode, season: nextSeason, welcomeSeason: nextSeason }); }
   function plant(plot: number) {
     const w = current.current, state = w[w.mode], catalog = w.mode === "demo" ? demoItems : w.favoritePool;
     if (state.crops.some(c => c.plot === plot)) return;
@@ -131,7 +132,7 @@ export function useFarm() {
     if (!eligible.length && roundProgress(state, catalog).complete) { dispatch({ type: "NEXT_ROUND" }); const refreshed = current.current; eligible = eligibleItems(refreshed[refreshed.mode], catalog); }
     if (!eligible.length) { setNotice(catalog.length ? "这些收藏已种下或已收获。" : "当前没有可用于农场的收藏。"); return; }
     const chosen = eligible[Math.floor(Math.random() * eligible.length)];
-    if (dispatch({ type: "PLANT", crop: makeCrop(plot, chosen.id, Date.now(), w.mode) })) { setEvent({ type: "PLANT", plot, at: Date.now() }); setNotice("种好啦！这段回忆来自「" + chosen.favlist + "」。"); }
+    if (dispatch({ type: "PLANT", crop: makeCrop(plot, chosen.id, Date.now(), w.mode, Math.random(), w.season) })) { setEvent({ type: "PLANT", plot, at: Date.now() }); setNotice("种好啦！这段回忆来自「" + chosen.favlist + "」。"); }
   }
   function care(id: string) { const crop = current.current[current.current.mode].crops.find(c => c.id === id); if (crop && dispatch({ type: "CARE", id, now: Date.now() })) { setEvent({ type: "CARE", plot: crop.plot, at: Date.now() }); setNotice("水浇好啦，早一点见面。"); } }
   function uproot(id: string) { const crop = current.current[current.current.mode].crops.find(c => c.id === id); dispatch({ type: "UPROOT", id }); if (crop) setEvent({ type: "UPROOT", plot: crop.plot, at: Date.now() }); }
@@ -143,6 +144,6 @@ export function useFarm() {
   function login() { window.location.href = "/api/auth/zhihu?returnTo=personal"; }
   async function logout() { await fetch("/api/auth/logout", { method: "POST" }); accountId.current = null; setAuth({ authenticated: false }); commit({ ...current.current, mode: "demo", demo: { ...current.current.demo, entered: false } }, false); setNotice("已退出知乎账号。"); }
   function switchMode(target: Mode) { if (target === "personal" && !auth?.authenticated) { login(); return; } commit({ ...current.current, mode: target }); }
-  return { ready, now, mode, farm, items, workspace, event, notice, storageWarning, auth, favlistsLoading, favlistsError, syncProgress, start, plant, care, uproot, harvest, importCollections, reset, exportSave, restoreSave, switchMode, login, logout, dispatch, setNotice };
+  return { ready, now, mode, farm, items, workspace, season: workspace.season, seasonMode: workspace.seasonMode, event, notice, storageWarning, auth, favlistsLoading, favlistsError, syncProgress, start, plant, care, uproot, harvest, importCollections, reset, exportSave, restoreSave, switchMode, login, logout, dispatch, setNotice, setSeasonMode };
 }
 

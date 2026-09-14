@@ -1,4 +1,4 @@
-import { ContentItem, Crop, FarmState, Workspace, emptyFarm, DEMO_DURATION, PLOT_COUNT } from "./model";
+import { ContentItem, Crop, FarmState, Workspace, emptyFarm, DEMO_DURATION, PLOT_COUNT, seasonForDate, type Season } from "./model";
 import { demoItems, isContentUrl, parseCollectionImport } from "./catalog";
 export const STORAGE_KEY = "kanshan-demo";
 export const PERSONAL_KEY_PREFIX = "kanshan-personal-";
@@ -8,7 +8,7 @@ export function safeUserKey(userId: string) { return encodeURIComponent(userId).
 export function personalStorageKey(userId: string) { return PERSONAL_KEY_PREFIX + safeUserKey(userId); }
 export function favoritesStorageKey(userId: string) { return FAVORITES_KEY_PREFIX + safeUserKey(userId); }
 export const LEGACY_KEY = "kanshan-woye-demo-v1";
-export function initialWorkspace(): Workspace { return { version: 2, mode: "demo", demo: emptyFarm(demoItems), personal: emptyFarm([]), personalItems: [], favoriteFolders: [], favoritePool: [], consumedUrls: [] }; }
+export function initialWorkspace(): Workspace { const season = seasonForDate(); return { version: 2, mode: "demo", demo: emptyFarm(demoItems), personal: emptyFarm([]), personalItems: [], favoriteFolders: [], favoritePool: [], consumedUrls: [], seasonMode: "auto", season, welcomeSeason: season }; }
 export function initialPersonalWorkspace(items: ContentItem[] = []): Workspace { const w = initialWorkspace(); return { ...w, mode: "personal", personalItems: items, favoritePool: items, personal: emptyFarm(items) }; }
 const record = (x: unknown): Record<string, unknown> => x !== null && typeof x === "object" ? x as Record<string, unknown> : {};
 const finite = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
@@ -47,7 +47,7 @@ export function restoreWorkspace(text: string): Workspace {
   if (Array.isArray(raw.personalItems) && raw.personalItems.length) { try { personalItems = parseCollectionImport(JSON.stringify(raw.personalItems)); } catch { personalItems = []; } }
   const folders = Array.isArray(raw.favoriteFolders) ? raw.favoriteFolders.filter((x: any) => x && typeof x.token === "string" && typeof x.title === "string").map((x: any) => ({ token: x.token, title: x.title, total: finite(x.total) ? x.total : 0, urls: Array.isArray(x.urls) ? x.urls.filter((u: any) => typeof u === "string") : [], fetchedAt: finite(x.fetchedAt) ? x.fetchedAt : 0 })) : [];
   const consumedUrls = Array.isArray(raw.consumedUrls) ? raw.consumedUrls.filter((u: any) => typeof u === "string") : [];
-  return { version: 2, mode: raw.mode === "personal" ? "personal" : "demo", personalItems, favoriteFolders: folders, favoritePool: Array.isArray(raw.favoritePool) ? raw.favoritePool as ContentItem[] : personalItems, consumedUrls, demo: restoreFarm(raw.demo, demoItems), personal: restoreFarm(raw.personal, personalItems, true) };
+  const fallbackSeason = seasonForDate(); const season = raw.season === "spring" || raw.season === "autumn" ? raw.season as Season : fallbackSeason; const seasonMode = raw.seasonMode === "manual" ? "manual" as const : "auto" as const; return { version: 2, mode: raw.mode === "personal" ? "personal" : "demo", personalItems, favoriteFolders: folders, favoritePool: Array.isArray(raw.favoritePool) ? raw.favoritePool as ContentItem[] : personalItems, consumedUrls, seasonMode, season, welcomeSeason: raw.welcomeSeason === "spring" || raw.welcomeSeason === "autumn" ? raw.welcomeSeason as Season : season, demo: restoreFarm(raw.demo, demoItems), personal: restoreFarm(raw.personal, personalItems, true) };
 }
 export function restorePersonalWorkspace(text: string, items: ContentItem[] = []): Workspace {
   const restored = restoreWorkspace(text);
