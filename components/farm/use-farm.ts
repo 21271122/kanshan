@@ -14,6 +14,8 @@ export function useFarm() {
   const [storageWarning, setStorageWarning] = useState("");
   const [event, setEvent] = useState<FarmEvent | null>(null);
   const [auth, setAuth] = useState<{ authenticated: boolean; user?: { name: string; avatar?: string } } | null>(null);
+  const [favlistsLoading, setFavlistsLoading] = useState(false);
+  const [favlistsError, setFavlistsError] = useState("");
   const seenMature = useRef(new Set<string>());
   const commit = useCallback((next: Workspace) => { current.current = next; setWorkspace(next); }, []);
 
@@ -25,7 +27,25 @@ export function useFarm() {
     } catch { setStorageWarning("未能读取本地存档。当前可继续体验；原存档保留，请先导出备份或在设置中重建。"); }
     setNow(Date.now()); setReady(true);
   }, [commit]);
-  useEffect(() => { fetch("/api/auth/status").then(r => r.json()).then(setAuth).catch(() => setAuth({ authenticated: false })); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/status", { cache: "no-store" }).then(r => r.json()).then(next => {
+      if (cancelled) return; setAuth(next);
+      if (next.authenticated) {
+        setFavlistsLoading(true); setFavlistsError("");
+        return fetch("/api/favlists", { cache: "no-store" }).then(async r => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "知乎收藏夹读取失败"); return data; }).then(data => {
+          if (cancelled) return;
+          const incoming = (data.items || []).flatMap((x: any) => x.contents || []);
+          if (incoming.length) {
+            const w = current.current, pool = mergeCollectionItems(w.favoritePool as any, incoming) as any, personalItems = mergeCollectionItems(w.personalItems, incoming);
+            const sources: string[] = (data.items || []).map((x: any) => typeof x.title === "string" ? x.title : "").filter((x: string) => Boolean(x));
+            commit({ ...w, mode: "personal", personalItems, favoritePool: pool, personal: { ...w.personal, sources } });
+          }
+        }).catch(e => { if (!cancelled) setFavlistsError(e instanceof Error ? e.message : "知乎收藏夹读取失败"); }).finally(() => { if (!cancelled) setFavlistsLoading(false); });
+      }
+    }).catch(() => { if (!cancelled) setAuth({ authenticated: false }); });
+    return () => { cancelled = true; };
+  }, [commit]);
   const saveBlocked = useRef(false);
   useEffect(() => {
     if (!ready) return;
@@ -89,7 +109,7 @@ export function useFarm() {
     const w = current.current, state = w[w.mode], catalog = w.mode === "demo" ? demoItems : w.favoritePool;
     if (state.crops.some(c => c.plot === plot)) return;
     const eligible = eligibleItems(state, catalog);
-    if (!eligible.length) { setNotice(catalog.length ? "本轮收藏已种下或已收获。看看成熟果实，或在内容来源里添加收藏。" : "先在内容来源里导入一些旧收藏，再来播种吧。"); return; }
+    if (!eligible.length) { setNotice(catalog.length ? "这些收藏已种下或已收获。看看成熟果实，或在内容来源里添加收藏。" : "先在内容来源里导入一些旧收藏，再来播种吧。"); return; }
     const chosen = eligible[Math.floor(Math.random() * eligible.length)];
     if (dispatch({ type: "PLANT", crop: makeCrop(plot, chosen.id, Date.now(), w.mode) })) {
       setEvent({ type: "PLANT", plot, at: Date.now() }); setNotice("种好啦！这段回忆来自「" + chosen.favlist + "」。");
@@ -146,9 +166,12 @@ export function useFarm() {
   function restoreSave(text: string) {
     const next = restoreWorkspace(text); saveBlocked.current = false; setStorageWarning(""); commit(next); setNotice("农场备份已恢复。");
   }
-  function switchMode(mode: Mode) { if (mode === "personal" && !auth?.authenticated) { window.location.href = "/api/auth/zhihu?returnTo=personal"; return; } commit({ ...current.current, mode }); setNotice(mode === "demo" ? "已回到演示农场。" : "已回到个人收藏农场。"); }
-  return { ready, now, mode, farm, items, workspace, event, notice, storageWarning, auth, start, plant, care, uproot, harvest, importCollections, reset, exportSave, restoreSave, switchMode, dispatch, setNotice };
+  function login() { window.location.href = "/api/auth/zhihu?returnTo=personal"; }
+  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); setAuth({ authenticated: false }); commit({ ...current.current, mode: "demo" }); setNotice("已退出知乎账号，当前为演示农场。"); }
+  function switchMode(mode: Mode) { if (mode === "personal" && !auth?.authenticated) { login(); return; } commit({ ...current.current, mode }); setNotice(mode === "demo" ? "已回到演示农场。" : "已回到个人收藏农场。"); }
+  return { ready, now, mode, farm, items, workspace, event, notice, storageWarning, auth, favlistsLoading, favlistsError, start, plant, care, uproot, harvest, importCollections, reset, exportSave, restoreSave, switchMode, login, logout, dispatch, setNotice };
 }
+
 
 
 

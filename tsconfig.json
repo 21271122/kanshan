@@ -31,7 +31,12 @@
     ".next-verify/types/**/*.ts",
     ".next-oauth-check/types/**/*.ts",
     ".next-verify-fav/types/**/*.ts",
-    ".next-revert/types/**/*.ts"
+    ".next-revert/types/**/*.ts",
+    ".next-asset-qa/types/**/*.ts",
+    ".next-asset-qa2/types/**/*.ts",
+    ".next-asset-qa3/types/**/*.ts",
+    ".next-final-qa/types/**/*.ts",
+    ".next-fertilizer-qa/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

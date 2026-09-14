@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-export type IconName = "leaf" | "water" | "spark" | "arrow" | "check" | "clock" | "book" | "settings" | "map" | "close" | "help" | "folder" | "sun" | "shovel" | "external" | "lock" | "download";
+export type IconName = "leaf" | "water" | "spark" | "arrow" | "check" | "clock" | "book" | "settings" | "map" | "close" | "help" | "folder" | "sun" | "shovel" | "external" | "lock" | "download" | "user" | "trophy" | "logout";
 const shapes: Record<IconName, ReactNode> = {
   leaf: <><path d="M20 3C9 3 3 8 4 15s11 7 14-2c1-3 2-6 2-10Z"/><path d="M4 21 15 10"/></>,
   water: <path d="M12 3c-2 4-7 8-7 12a7 7 0 0 0 14 0c0-4-5-8-7-12Z"/>,
@@ -17,7 +17,10 @@ const shapes: Record<IconName, ReactNode> = {
   shovel: <><path d="m16 3 5 5-2 2-5-5ZM16 8l-6 6m-3-2 5 5-5 4-4-4Z"/></>,
   external: <><path d="M14 3h7v7m0-7L10 14"/><path d="M10 4H4v16h16v-6"/></>,
   lock: <><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4m-4 5v2"/></>,
-  download: <><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/></>
+  download: <><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/></>,
+  user: <><circle cx="12" cy="8" r="3.5"/><path d="M5 21c.6-4 2.8-6 7-6s6.4 2 7 6"/></>,
+  trophy: <><path d="M8 4h8v4a4 4 0 0 1-8 0Z"/><path d="M8 6H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4M12 12v5m-4 4h8"/></>,
+  logout: <><path d="M10 5H5v14h5"/><path d="m14 8 4 4-4 4m4-4H8"/></>,
 };
 export function Icon({ name, className = "" }: { name: IconName; className?: string }) {
   return <svg className={"icon " + className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{shapes[name]}</svg>;

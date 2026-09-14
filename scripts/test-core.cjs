@@ -20,9 +20,9 @@ test("water once, with bounded acceleration and no maturity dependency", () => {
   let farm = reduceFarm(emptyFarm(demoItems), { type: "PLANT", crop: crop(0, "a1") }, demoItems);
   assert.equal(stageOf(farm.crops[0], t), "seed");
   const watered = reduceFarm(farm, { type: "CARE", id: farm.crops[0].id, now: t + 1 }, demoItems);
-  assert.equal(watered.crops[0].careSeconds, 8);
+  assert.equal(watered.crops[0].careSeconds, 80);
   assert.equal(reduceFarm(watered, { type: "CARE", id: farm.crops[0].id, now: t + 2 }, demoItems), watered);
-  assert.equal(stageOf(farm.crops[0], t + 80_000), "mature");
+  assert.equal(stageOf(watered.crops[0], t + 1), "mature");
 });
 test("only mature crops can harvest, and a repeat harvest is idempotent", () => {
   const c = crop(0, "a1");

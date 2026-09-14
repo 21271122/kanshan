@@ -63,15 +63,13 @@ export function CropDrawing({ stage }: { stage: Stage }) {
 export function Plot({ index, crop, now, onClick, event }: { index: number; crop?: Crop; now: number; onClick: () => void; event: FarmEvent | null }) {
   const stage = crop ? stageOf(crop, now) : "empty";
   const activeEvent = event?.plot === index ? event : null;
-  const name = crop ? "回忆作物" : "留一格给惊喜";
   const asset = crop ? assetForCrop(crop.assetFamily, stage as Stage) : undefined;
   return <button className={"plot plot-" + stage + (asset?.presentation === "illustration" ? " plot-illustration" : "")} onClick={onClick}
-    aria-label={index + 1 + " 号地 · " + (stage === "empty" ? "空地，点击播种" : stage === "mature" ? "成熟，查看收获预览" : stage === "sprout" ? "幼苗，查看线索" : "种子，查看成长") + (crop ? " · " + name : "")}>
+    aria-label={index + 1 + " 号地 · " + (stage === "empty" ? "空地，点击播种" : stage === "mature" ? "成熟，查看收获预览" : stage === "sprout" ? "幼苗，查看线索" : "种子，查看成长")}>
     <span className="plot-art">
       {crop ? <AssetImage asset={asset!} fallback={<CropDrawing stage={stage as Stage} />}/> : <span className="empty-bed"><Icon name="leaf"/><span>＋ 播种</span></span>}
       {crop && (stage === "mature" ? <span className="ready-bubble"><Icon name="spark"/>可收获</span> : <span className="plot-progress" aria-hidden="true"><i style={{ transform: "scaleX(" + growthOf(crop, now) + ")" }}/></span>)}
     </span>
-    <span className="plot-caption"><span className="plot-index">{String(index + 1).padStart(2, "0")}</span><span>{name}</span></span>
     {activeEvent && <span key={activeEvent.at} className={"plot-effect effect-" + activeEvent.type.toLowerCase()} aria-hidden="true"><EffectVisual event={activeEvent}/><i/><i/><i/></span>}
   </button>;
 }
@@ -85,10 +83,9 @@ export function Mascot({ event, matureCount }: { event: FarmEvent | null; mature
 export function FarmScene({ crops, now, event, onPlot, onMap }: { crops: Crop[]; now: number; event: FarmEvent | null; onPlot: (plot: number) => void; onMap: () => void }) {
   const zone = zones[0];
   return <section className="farm-scene" aria-label="主农场，共十块地">
-    <div className="scene-heading"><div><p className="eyebrow">一小片地，慢慢遇见</p><h1>我的沃野<span>秋日生长季</span></h1></div><span className="weather"><Icon name="sun" />晴 · 适合想起一些事</span></div>
     <div className="field-area"><div className="field-boundary"/><div className="field" aria-label="十块可交互地块">{Array.from({ length: zone.plotCount }, (_, index) => <Plot key={index} index={index} crop={crops.find(c => c.plot === index)} now={now} event={event} onClick={() => onPlot(index)} />)}</div></div>
     <Mascot event={event} matureCount={crops.filter(c => stageOf(c, now) === "mature").length} />
-    <button className="zone-sign" onClick={onMap}><span><Icon name="lock" />东侧新田</span><small>去地图看看 <Icon name="arrow" /></small></button>
+    <button className="zone-sign" onClick={onMap}><span><Icon name="trophy" />作物图鉴</span><small>查看收获成就 <Icon name="arrow" /></small></button>
   </section>;
 }
 

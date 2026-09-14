@@ -27,7 +27,7 @@ function restoreFarm(value: unknown, items: ContentItem[]): FarmState {
     const found = items.find(i => i.id === item.id);
     if (!found || typeof entry.id !== "string" || logIds.has(entry.id) || !(entry.at === null || finite(entry.at))) continue;
     logIds.add(entry.id);
-    log.push({ id: entry.id, item: found, at: entry.at, round: finite(entry.round) ? entry.round : 1 });
+    log.push({ id: entry.id, item: found, at: entry.at, round: finite(entry.round) ? entry.round : 1, assetFamily: typeof entry.assetFamily === "string" ? entry.assetFamily : undefined });
   }
   // V1 did not record dates. Preserve progress without inventing timestamps.
   if (!Array.isArray(raw.log)) reviewed.forEach(id => { const item = items.find(i => i.id === id)!; log.push({ id: "legacy-" + id, item, at: null, round: 1 }); });

@@ -1,7 +1,7 @@
 export type Stage = "seed" | "sprout" | "mature";
 export type ContentItem = { id: string; favlist: string; title: string; hint: string; tags: string[]; url: string; type: string };
 export type Crop = { id: string; plot: number; zoneId: string; itemId: string; plantedAt: number; durationMs: number; careSeconds: number; caredAt?: number; assetFamily?: string };
-export type HarvestEntry = { id: string; item: ContentItem; at: number | null; round: number };
+export type HarvestEntry = { id: string; item: ContentItem; at: number | null; round: number; assetFamily?: string };
 export type FarmState = { entered: boolean; achievements: string[]; sources: string[]; crops: Crop[]; reviewed: string[]; log: HarvestEntry[]; round: number; gardenSince: number | null };
 export type Mode = "demo" | "personal";
 export type FavoritePoolEntry = { id: string; url: string; title: string; favlist: string; type: string; hint: string; tags: string[] };
@@ -55,7 +55,7 @@ export function reduceFarm(farm: FarmState, action: FarmAction, items: ContentIt
     case "CARE": {
       const crop = farm.crops.find(c => c.id === action.id);
       if (!crop || crop.caredAt !== undefined || stageOf(crop, action.now) === "mature") return farm;
-      return { ...farm, crops: farm.crops.map(c => c.id === crop.id ? { ...c, careSeconds: Math.round(c.durationMs / 1000 * .1), caredAt: action.now } : c) };
+      return { ...farm, crops: farm.crops.map(c => c.id === crop.id ? { ...c, careSeconds: Math.ceil(c.durationMs / 1000), caredAt: action.now } : c) };
     }
     case "UPROOT": {
       const crops = farm.crops.filter(c => c.id !== action.id);
@@ -66,7 +66,7 @@ export function reduceFarm(farm: FarmState, action: FarmAction, items: ContentIt
       const item = items.find(i => i.id === crop?.itemId);
       if (!crop || !item || stageOf(crop, action.now) !== "mature" || farm.reviewed.includes(item.id)) return farm;
       const crops = farm.crops.filter(c => c.id !== crop.id);
-      return { ...farm, crops, reviewed: [...farm.reviewed, item.id], log: [{ id: crop.id, item, at: action.now, round: farm.round }, ...farm.log], gardenSince: crops.length ? farm.gardenSince : null };
+      return { ...farm, crops, reviewed: [...farm.reviewed, item.id], log: [{ id: crop.id, item, at: action.now, round: farm.round, assetFamily: crop.assetFamily }, ...farm.log], gardenSince: crops.length ? farm.gardenSince : null };
     }
     case "SOURCES": {
       const valid = new Set(items.map(i => i.favlist));
@@ -84,7 +84,9 @@ export function reduceFarm(farm: FarmState, action: FarmAction, items: ContentIt
   }
 }
 export function makeCrop(plot: number, itemId: string, now: number, mode: Mode, random = Math.random()): Crop {
-  return { id: crypto.randomUUID(), plot, itemId, zoneId: "main-field", plantedAt: now, durationMs: Math.round((mode === "demo" ? DEMO_DURATION : 600_000) * (.9 + random * .2)), careSeconds: 0, assetFamily: "default" };
+  const families = ["cabbage", "radish", "morningGlory", "cauliflower", "grape", "peaShoots"];
+  const family = families[Math.min(families.length - 1, Math.floor(Math.max(0, Math.min(.999999, Math.random())) * families.length))];
+  return { id: crypto.randomUUID(), plot, itemId, zoneId: "main-field", plantedAt: now, durationMs: Math.round((mode === "demo" ? DEMO_DURATION : 600_000) * (.9 + random * .2)), careSeconds: 0, assetFamily: family };
 }
 
 
