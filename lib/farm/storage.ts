@@ -38,7 +38,8 @@ function restoreFarm(value: unknown, items: ContentItem[], allowUnknown = false)
   }
   // V1 did not record dates. Preserve progress without inventing timestamps.
   if (!Array.isArray(raw.log)) reviewed.forEach(id => { const item = items.find(i => i.id === id)!; log.push({ id: "legacy-" + id, item, at: null, round: 1 }); });
-  return { ...blank, achievements: strings(raw.achievements).filter(key => ["first", "ten", ...(raw.log ? ["caretaker"] : [])].includes(key)), entered: raw.entered === true, sources: sources.length ? sources : blank.sources, crops, reviewed, log, round: finite(raw.round) && raw.round >= 1 ? Math.floor(raw.round) : 1, gardenSince: crops.length ? finite(raw.gardenSince) ? raw.gardenSince : Math.min(...crops.map(c => c.plantedAt)) : null };
+  const plantedCount = finite(raw.plantedCount) && raw.plantedCount >= 0 ? Math.floor(raw.plantedCount) : crops.length + log.length;
+  return { ...blank, achievements: strings(raw.achievements).filter(key => ["first", "ten", ...(raw.log ? ["caretaker"] : [])].includes(key) || key.startsWith("memorial:")), entered: raw.entered === true, sources: sources.length ? sources : blank.sources, crops, reviewed, log, round: finite(raw.round) && raw.round >= 1 ? Math.floor(raw.round) : 1, gardenSince: crops.length ? finite(raw.gardenSince) ? raw.gardenSince : Math.min(...crops.map(c => c.plantedAt)) : null, plantedCount, starterFamily: typeof raw.starterFamily === "string" ? raw.starterFamily : crops.find(c => c.assetFamily)?.assetFamily };
 }
 export function restoreWorkspace(text: string): Workspace {
   const raw = record(JSON.parse(text));

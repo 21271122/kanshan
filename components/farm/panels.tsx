@@ -21,7 +21,7 @@ export function CropPanel({ crop, item, now, mode, onClose, onCare, onUproot, on
       <button className="primary full" onClick={onCare} disabled={crop.caredAt !== undefined}><Icon name={crop.caredAt !== undefined ? "check" : "water"} />{crop.caredAt !== undefined ? "已经施过肥了" : "施肥 · 立即收获"}</button>
       <p className="fine-print">每株只能施肥一次。施肥会让它立刻成熟，然后就可以收获。不施肥也会自然生长。</p>
       {confirmUproot ? <div className="inline-confirm"><p>收回作物后，这篇收藏会回到待重温池。</p><button className="secondary" onClick={onUproot}>确认收回</button><button className="quiet" onClick={() => setConfirmUproot(false)}>再等等</button></div> : <button className="quiet full" onClick={() => setConfirmUproot(true)}><Icon name="shovel" />收回这株作物</button>}
-    </> : <><p className="memory-note">这是你曾经留下的一小片心意。想读多少，都由你。</p>{mode === "demo" && <p className="demo-note">这是一篇演示收藏，打开后会在知乎搜索同名话题。</p>}{openError && <p className="form-error" role="alert">浏览器未能打开新标签页。请允许本站弹窗后再试，作物仍为你保留。</p>}<button className="primary full" onClick={() => setOpenError(!onHarvest())}><Icon name="external" />{mode === "demo" ? "体验收获 · 搜索这个话题" : "收获 · 在知乎打开原帖"}</button><button className="quiet full" onClick={onClose}>先留在农场</button><p className="fine-print">打开新标签页后才计入收获，预览不会改变进度。</p></>}
+    </> : <><p className="memory-note">这是你曾经留下的一小片心意。想读多少，都由你。</p>{openError && <p className="form-error" role="alert">浏览器未能打开新标签页。请允许本站弹窗后再试，作物仍为你保留。</p>}<button className="primary full" onClick={() => setOpenError(!onHarvest())}><Icon name="external" />{mode === "demo" ? "体验收获 · 搜索这个话题" : "收获 · 在知乎打开原帖"}</button></>}
   </Dialog>;
 }
 export function SourcePanel({ game, onClose }: { game: FarmController; onClose: () => void }) {
@@ -34,7 +34,7 @@ export function SourcePanel({ game, onClose }: { game: FarmController; onClose: 
     <div className="source-list">{sources.map(source => <label key={source}><input type="checkbox" checked={draft.includes(source)} onChange={() => setDraft(old => old.includes(source) ? old.filter(s => s !== source) : [...old, source])}/><span className="folder-icon"><Icon name="folder"/></span><span><strong>{source}</strong><small>{game.workspace.favoritePool.filter(i => i.favlist === source).length} 篇 · {game.mode === "demo" ? "演示收藏" : "知乎收藏夹"}</small></span></label>)}</div>
     {!sources.length && <p className="empty-state">还没有可用于农场的收藏。先在知乎收藏一些喜欢的内容吧。</p>}
     <button className="primary full" disabled={!draft.length || game.favlistsLoading} onClick={() => { game.dispatch({ type: "SOURCES", sources: draft }); game.setNotice("来源已更新，已种下的作物会保留。"); onClose(); }}>就从这些收藏里开始 <Icon name="arrow"/></button>
-    {game.mode === "demo" && <p className="demo-note">当前为演示模式。登录知乎后，会自动读取你的收藏夹。</p>}
+    
   </Dialog>;
 }
 export function LogPanel({ farm, items, mode, now, onClose, onNewRound }: { farm: FarmState; items: ContentItem[]; mode: Mode; now: number; onClose: () => void; onNewRound: () => void }) {
@@ -47,13 +47,37 @@ export function LogPanel({ farm, items, mode, now, onClose, onNewRound }: { farm
   </Dialog>;
 }
 export function HelpPanel({ onClose }: { onClose: () => void }) {
-  return <Dialog title="来这里，不用赶时间" eyebrow="看山的农场小手册" onClose={onClose}><div className="help-steps">{[{ icon: "folder" as const, title: "选好回忆的来处", text: "登录知乎后自动读取收藏夹，默认全部选中。" }, { icon: "leaf" as const, title: "空地一按，种下惊喜", text: "随机挑一篇未重温的收藏，发芽后会慢慢透露线索。" }, { icon: "spark" as const, title: "长好了，再见一面", text: "点击成熟果实预览。打开原帖才计入收获，不要求读完。" }].map(step => <div key={step.title}><span><Icon name={step.icon} /></span><div><h3>{step.title}</h3><p>{step.text}</p></div></div>)}</div><div className="gentle-note"><Icon name="water" /><p>你不在的时候，看山也会照料。<br/>没有枯萎、打卡或错过奖励。</p></div><p className="fine-print">演示作物约 80 秒成熟；个人农场约 10 分钟。一次浇水可缩短约 10%，关闭页面也会继续成长。</p></Dialog>;
+  return <Dialog title="来这里，不用赶时间" eyebrow="看山的农场小手册" onClose={onClose}><div className="help-steps">{[{ icon: "folder" as const, title: "选好回忆的来处", text: "登录知乎后自动读取收藏夹，默认全部选中。" }, { icon: "leaf" as const, title: "空地一按，种下惊喜", text: "随机挑一篇未重温的收藏，发芽后会慢慢透露线索。" }, { icon: "spark" as const, title: "长好了，再见一面", text: "点击成熟果实预览。打开原帖才计入收获，不要求读完。" }].map(step => <div key={step.title}><span><Icon name={step.icon} /></span><div><h3>{step.title}</h3><p>{step.text}</p></div></div>)}</div><div className="gentle-note"><Icon name="water" /><p>你不在的时候，看山也会照料。<br/>没有枯萎、打卡或错过奖励。</p></div></Dialog>;
 }
 export function AchievementPanel({ farm, onClose }: { farm: FarmState; onClose: () => void }) {
   const varieties = [{name:"小白菜",family:"autumn-cabbage",img:"/assets/farm/crops/autumn-cabbage/mature.png"},{name:"樱桃萝卜",family:"autumn-radish",img:"/assets/farm/crops/autumn-radish/mature.png"},{name:"牵牛花",family:"autumn-morning-glory",img:"/assets/farm/crops/autumn-morning-glory/mature.png"},{name:"花椰菜",family:"autumn-cauliflower",img:"/assets/farm/crops/autumn-cauliflower/mature.png"},{name:"葡萄",family:"autumn-grape",img:"/assets/farm/crops/autumn-grape/mature.png"},{name:"菠菜",family:"spring-spinach",img:"/assets/farm/crops/spring-spinach/mature.png"},{name:"草莓",family:"spring-strawberry",img:"/assets/farm/crops/spring-strawberry/mature.png"},{name:"三色堇",family:"spring-pansy",img:"/assets/farm/crops/spring-pansy/mature.png"},{name:"西红柿",family:"spring-tomato",img:"/assets/farm/crops/spring-tomato/mature.png"},{name:"豌豆苗",family:"spring-pea-shoot",img:"/assets/farm/crops/spring-pea-shoot/mature.png"}];
   const collected = new Set(farm.log.map(entry => entry.assetFamily).filter(Boolean));
   return <Dialog title="每一次收获，都有新发现" eyebrow="作物图鉴" onClose={onClose} wide><p className="muted">解锁后会显示种植纪念贴图，未解锁的贴图会被黑色蒙版遮住。</p><div className="achievement-gallery">{varieties.map(v => { const earned = collected.has(v.family); return <div key={v.family} className={"achievement-card sticker-card " + (earned ? "earned" : "locked")}><div className="sticker-frame"><img src={v.img} alt={v.name + "种植纪念贴图"}/>{!earned && <span className="sticker-mask"><Icon name="lock"/></span>}</div><strong>{v.name}</strong><small>{earned ? "已解锁 · 种植纪念" : "收获后解锁"}</small></div>})}</div></Dialog>;
 }
+const memorialStickers: Record<string, { name: string; src: string }> = {
+  "autumn-cabbage": { name: "小白菜", src: "/assets/farm/stickers/autumn-cabbage.png" },
+  "autumn-radish": { name: "樱桃萝卜", src: "/assets/farm/stickers/autumn-radish.png" },
+  "autumn-morning-glory": { name: "牵牛花", src: "/assets/farm/stickers/autumn-morning-glory.png" },
+  "autumn-cauliflower": { name: "花椰菜", src: "/assets/farm/stickers/autumn-cauliflower.png" },
+  "autumn-grape": { name: "葡萄", src: "/assets/farm/stickers/autumn-grape.png" },
+  "autumn-pea-shoot": { name: "豌豆苗", src: "/assets/farm/stickers/autumn-pea-shoot.png" },
+  "spring-spinach": { name: "菠菜", src: "/assets/farm/stickers/spring-spinach.png" },
+  "spring-strawberry": { name: "草莓", src: "/assets/farm/stickers/spring-strawberry.png" },
+  "spring-pansy": { name: "三色堇", src: "/assets/farm/stickers/spring-pansy.png" },
+  "spring-tomato": { name: "西红柿", src: "/assets/farm/stickers/spring-tomato.png" },
+  "spring-pea-shoot": { name: "豌豆苗", src: "/assets/farm/stickers/spring-pea-shoot.png" },
+  cabbage: { name: "小白菜", src: "/assets/farm/stickers/autumn-cabbage.png" },
+  radish: { name: "樱桃萝卜", src: "/assets/farm/stickers/autumn-radish.png" },
+  morningGlory: { name: "牵牛花", src: "/assets/farm/stickers/autumn-morning-glory.png" },
+  cauliflower: { name: "花椰菜", src: "/assets/farm/stickers/autumn-cauliflower.png" },
+  grape: { name: "葡萄", src: "/assets/farm/stickers/autumn-grape.png" },
+  peaShoots: { name: "豌豆苗", src: "/assets/farm/stickers/autumn-pea-shoot.png" },
+};
+export function PlantingMemorialPanel({ memorial, onClose }: { memorial: { family: string; season: "autumn" | "spring" }; onClose: () => void }) {
+  const sticker = memorialStickers[memorial.family] ?? memorialStickers[memorial.season === "spring" ? "spring-spinach" : "autumn-cabbage"];
+  return <Dialog title="种植纪念" eyebrow="隐藏彩蛋 · 三次收获" onClose={onClose}><div className="memorial-art"><img src={sticker.src} alt={sticker.name + "种植纪念贴图"} /></div><h3 className="memory-title memorial-title">恭喜你，收获了 3 株{sticker.name}</h3><p className="memory-note">一小片种下的心意，长成了值得收藏的纪念。图鉴已为你点亮。</p><button className="primary full" onClick={onClose}>收下这份纪念</button></Dialog>;
+}
+
 export function SettingsPanel({ game, onClose }: { game: FarmController; onClose: () => void }) {
   const [confirmReset, setConfirmReset] = useState(false);
   return <Dialog title="按自己的节奏来" eyebrow="农场设置" onClose={onClose}>
