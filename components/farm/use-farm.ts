@@ -2,7 +2,7 @@
 import { durationForEvent } from "../../lib/farm-assets";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { demoItems, mergeCollectionItems } from "../../lib/farm/catalog";
-import { DEMO_DURATION, FarmAction, FarmEvent, Mode, emptyFarm, eligibleItems, makeCrop, reduceFarm, roundProgress, stageOf, memorialFamilyKey, seasonForDate, seasonalFamilies, type ContentItem, type Workspace, type Season, type SeasonMode } from "../../lib/farm/model";
+import { DEMO_DURATION, FarmAction, FarmEvent, Mode, emptyFarm, eligibleItems, makeCrop, reduceFarm, roundProgress, stageOf, memorialFamilyKey, seasonForDate, seasonalFamilies, type ContentItem, type Workspace, type FarmState, type Season, type SeasonMode } from "../../lib/farm/model";
 import { LEGACY_KEY, STORAGE_KEY, favoritesStorageKey, initialPersonalWorkspace, initialWorkspace, personalStorageKey, restorePersonalWorkspace, restoreWorkspace } from "../../lib/farm/storage";
 
 type Auth = { authenticated: boolean; user?: { id: string; name: string; avatar?: string }; sessionId?: string };
@@ -22,6 +22,7 @@ export function useFarm() {
   const [favlistsError, setFavlistsError] = useState("");
   const [syncProgress, setSyncProgress] = useState("");
   const seenMature = useRef(new Set<string>());
+  const memorialPending = useRef(new Set<string>());
   const saveBlocked = useRef(false);
   const accountId = useRef<string | null>(null);
   const commit = useCallback((next: Workspace, persist = true) => {
@@ -30,6 +31,32 @@ export function useFarm() {
       try { localStorage.setItem(personalStorageKey(accountId.current), JSON.stringify(next)); } catch { setStorageWarning("浏览器暂时无法保存当前账号的农场。"); }
     }
   }, []);
+
+  const triggerMemorial = useCallback((base: Workspace, farm: FarmState, preferredFamily?: string) => {
+    const counts = new Map<string, number>();
+    for (const entry of farm.log) {
+      const key = memorialFamilyKey(entry.assetFamily);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const keys = preferredFamily ? [memorialFamilyKey(preferredFamily)] : [...counts.keys()];
+    for (const key of keys) {
+      if ((counts.get(key) ?? 0) < 3) continue;
+      const marker = "memorial:" + key;
+      const scope = base.mode + ":" + (accountId.current ?? "demo") + ":" + marker;
+      if (farm.achievements.includes(marker)) {
+        memorialPending.current.delete(scope);
+        continue;
+      }
+      if (memorialPending.current.has(scope)) continue;
+      const family = farm.log.find(entry => memorialFamilyKey(entry.assetFamily) === key)?.assetFamily;
+      if (!family) continue;
+      memorialPending.current.add(scope);
+      const nextFarm = { ...farm, achievements: [...farm.achievements, marker] };
+      commit({ ...base, [base.mode]: nextFarm });
+      setMemorial({ family, season: base.season });
+      break;
+    }
+  }, [commit]);
 
   const loadPersonal = useCallback((userId: string, items: ContentItem[] = []) => {
     accountId.current = userId;
@@ -123,18 +150,9 @@ export function useFarm() {
   useEffect(() => { if (!ready || !farm.entered) return; const w = current.current, catalog = w.mode === "demo" ? demoItems : w.favoritePool; const next = reduceFarm(w[w.mode], { type: "CHECK_ACHIEVEMENTS", now }, catalog); if (next !== w[w.mode]) commit({ ...w, [w.mode]: next }); }, [ready, now, farm, commit]);
   useEffect(() => {
     if (!ready) return;
-    const currentFarm = current.current[current.current.mode];
-    const counts = new Map<string, number>();
-    for (const entry of currentFarm.log) { const key = memorialFamilyKey(entry.assetFamily); counts.set(key, (counts.get(key) ?? 0) + 1); }
-    for (const [key, count] of counts) {
-      const marker = "memorial:" + key;
-      if (count >= 3 && !currentFarm.achievements.includes(marker)) {
-        const family = currentFarm.log.find(entry => memorialFamilyKey(entry.assetFamily) === key)?.assetFamily;
-        if (family) { setMemorial({ family, season: current.current.season }); commit({ ...current.current, [current.current.mode]: { ...currentFarm, achievements: [...currentFarm.achievements, marker] } }); }
-        break;
-      }
-    }
-  }, [ready, mode, farm.log.length, commit]);
+    const w = current.current;
+    triggerMemorial(w, w[w.mode]);
+  }, [ready, mode, farm.log.length, triggerMemorial]);
   useEffect(() => { if (!ready || !now) return; if (current.current.seasonMode === "auto") { const nextSeason = seasonForDate(new Date(now)); if (nextSeason !== current.current.season) commit({ ...current.current, season: nextSeason, welcomeSeason: nextSeason }); } const mature = farm.crops.filter(c => stageOf(c, now) === "mature"); const found = mature.find(c => !seenMature.current.has(mode + c.id)); mature.forEach(c => seenMature.current.add(mode + c.id)); if (found) { setEvent({ type: "MATURE", plot: found.plot, at: Date.now() }); setNotice("有一段回忆成熟了。它会一直等你，随时来收获。"); } }, [farm.crops, farm.entered, mode, ready, now]);
 
   function dispatch(action: FarmAction) { const w = current.current, catalog = w.mode === "demo" ? demoItems : w.favoritePool; const nextFarm = reduceFarm(w[w.mode], action, catalog); if (nextFarm === w[w.mode]) return false; commit({ ...w, [w.mode]: nextFarm }); return true; }
@@ -159,21 +177,13 @@ export function useFarm() {
     if (!popup) { setNotice("浏览器拦截了新标签页，请允许弹窗后再试。"); return false; }
     try { popup.opener = null; popup.location.href = item.url; } catch { popup.close(); return false; }
     dispatch({ type: "HARVEST", id, now: Date.now() });
-    let harvestedWorkspace = current.current;
-    const harvestedFarm = harvestedWorkspace[harvestedWorkspace.mode];
-    const familyKey = memorialFamilyKey(crop.assetFamily);
-    const nextCount = harvestedFarm.log.filter(entry => memorialFamilyKey(entry.assetFamily) === familyKey).length;
-    const memorialMarker = "memorial:" + familyKey;
-    if (crop.assetFamily && nextCount >= 3 && !harvestedFarm.achievements.includes(memorialMarker)) {
-      setMemorial({ family: crop.assetFamily, season: w.season });
-      harvestedWorkspace = { ...harvestedWorkspace, [harvestedWorkspace.mode]: { ...harvestedFarm, achievements: [...harvestedFarm.achievements, memorialMarker] } };
-      commit(harvestedWorkspace);
-    }
+    const harvestedWorkspace = current.current;
+    triggerMemorial(harvestedWorkspace, harvestedWorkspace[harvestedWorkspace.mode], crop.assetFamily);
     if (w.mode === "personal") commit({ ...current.current, consumedUrls: [...new Set([...current.current.consumedUrls, item.url])] });
     setEvent({ type: "HARVEST", plot: crop.plot, at: Date.now() }); setNotice(w.mode === "demo" ? "体验收获 +1。" : "重温 +1。原帖已打开。"); return true;
   }
   function importCollections() { setNotice("个人收藏由知乎同步提供。"); return 0; }
-  function reset(mode: Mode) { saveBlocked.current = false; commit({ ...current.current, [mode]: emptyFarm(mode === "demo" ? demoItems : current.current.personalItems) }); }
+  function reset(mode: Mode) { saveBlocked.current = false; const prefix = mode + ":" + (mode === "personal" ? (accountId.current ?? "") : "demo") + ":"; for (const key of [...memorialPending.current]) if (key.startsWith(prefix)) memorialPending.current.delete(key); commit({ ...current.current, [mode]: emptyFarm(mode === "demo" ? demoItems : current.current.personalItems) }); }
   function exportSave() {}
   function restoreSave() {}
   function login() { window.location.href = "/api/auth/zhihu?returnTo=personal"; }
