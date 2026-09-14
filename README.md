@@ -20,14 +20,48 @@ npm run dev
 
 所有变量只配置在服务端环境，不要写进前端代码，也不要提交 '.env.local'。
 
-### DeepSeek 聊天
+### LLM 聊天
+
+通过 LLM_PROVIDER 切换 OpenAI 兼容的模型供应商。密钥和模型名只配置在服务端。
 
 ~~~dotenv
-DEEPSEEK_API_KEY=你的服务端密钥
-DEEPSEEK_MODEL=deepseek-chat
+LLM_PROVIDER=deepseek
+LLM_API_KEY=你的服务端密钥
+LLM_MODEL=deepseek-chat
+LLM_BASE_URL=
 ~~~
 
-每次发送消息时，前端会把当前农场快照发送到 '/api/chat'。服务端将快照放入本次请求的 system 消息，再调用 DeepSeek。快照包括收获数、回顾收藏数、当前作物数、成熟数、分类收获次数、登录状态等。
+支持的预置供应商：
+
+| LLM_PROVIDER | 默认接口 | 默认模型 |
+| --- | --- | --- |
+| deepseek | https://api.deepseek.com | deepseek-chat |
+| siliconflow | https://api.siliconflow.cn/v1 | Qwen/Qwen2.5-72B-Instruct |
+| openrouter | https://openrouter.ai/api/v1 | deepseek/deepseek-chat |
+| zhipu | https://open.bigmodel.cn/api/paas/v4 | glm-4-flash |
+| dashscope | https://dashscope.aliyuncs.com/compatible-mode/v1 | qwen-plus |
+| moonshot | https://api.moonshot.cn/v1 | moonshot-v1-8k |
+
+切换时通常只需修改：
+
+~~~dotenv
+LLM_PROVIDER=siliconflow
+LLM_API_KEY=你的 SiliconFlow Key
+LLM_MODEL=Qwen/Qwen2.5-72B-Instruct
+~~~
+
+也可以使用任意 OpenAI 兼容服务：
+
+~~~dotenv
+LLM_PROVIDER=custom
+LLM_BASE_URL=https://example.com/v1
+LLM_API_KEY=你的密钥
+LLM_MODEL=你的模型名
+~~~
+
+每次发送消息时，前端会把当前农场快照发送到 /api/chat。服务端将快照放入本次请求最后的 system 消息，再调用所选供应商。快照包括收获数、回顾收藏数、当前作物数、成熟数、分类收获次数、登录状态等。
+
+为兼容旧部署，LLM_PROVIDER=deepseek 且未设置 LLM_API_KEY 时，会回退读取 DEEPSEEK_API_KEY 和 DEEPSEEK_MODEL。
 
 ### 知乎登录和收藏同步
 
@@ -111,13 +145,13 @@ npm run package:cloudbase
 - 'next.config.mjs'
 - 'scf_bootstrap'
 
-将该目录部署为 CloudBase HTTP 云函数，并在同一个云函数环境中配置 'DEEPSEEK_API_KEY'、知乎 OAuth 变量和 'APP_URL'。修改变量后需要重新发布或重启云函数。
+将该目录部署为 CloudBase HTTP 云函数，并在同一个云函数环境中配置 'LLM_PROVIDER'、'LLM_API_KEY'、'LLM_MODEL'（必要时配置 'LLM_BASE_URL'）、知乎 OAuth 变量和 'APP_URL'。修改变量后需要重新发布或重启云函数。
 
 部署后可检查：
 
 - '/api/health' 返回 '{"ok":true,...}'；
 - '/api/chat' 不应返回 404；
-- 未配置 'DEEPSEEK_API_KEY' 时返回 503；
+- 未配置 'LLM_API_KEY'（且没有旧的 'DEEPSEEK_API_KEY' 回退值）时返回 503；
 - DeepSeek 暂时过载时会返回上游错误，稍后重试即可。
 
 ## 数据与边界
