@@ -75,6 +75,8 @@ ZHIHU_ACCESS_SECRET=你的知乎 Access Secret
 
 'ZHIHU_OAUTH_REDIRECT_URI' 必须与知乎开放平台登记的回调地址完全一致。生产环境请改成部署域名对应的 HTTPS 地址。
 
+如果知乎开放平台无法登记本地回调地址（例如 http://localhost:3000/api/auth/zhihu/callback），本地运行时只能进入演示模式，无法使用知乎登录和收藏同步；真实知乎登录需要部署到已登记回调地址的环境。
+
 'SESSION_ENCRYPTION_KEY'、'CLOUDBASE_ENV_ID'、'CLOUDBASE_SECRET_ID' 和 'CLOUDBASE_SECRET_KEY' 已保留在示例模板中，当前代码不依赖它们才能运行；如果后续接入 CloudBase 数据库，再按部署方案配置。
 
 ## 功能
@@ -163,3 +165,4 @@ npm run package:cloudbase
 - 不要提交 '.env.local'、API Key、OAuth Secret、Cookie 或本地存档。
 - DeepSeek 和知乎凭证只能放在服务端环境变量。
 - 推送前检查 'git status --ignored' 和 'git diff --check'。
+
