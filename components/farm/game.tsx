@@ -8,6 +8,7 @@ import { Icon } from "./icon";
 import { useFarm } from "./use-farm";
 import { ChatPanel } from "./chat-panel";
 import { makeFarmChatSnapshot } from "../../lib/farm/chat-context";
+import { FractalLoader } from "./fractal-loader";
 
 type Panel = "sources" | "log" | "help" | "achievements" | "settings" | "chat" | { plot: number } | null;
 export default function Game() {
@@ -60,7 +61,7 @@ export default function Game() {
     {selected && selectedItem && <CropPanel key={selected.id} crop={selected} item={selectedItem} mode={mode} now={now} onClose={close} onCare={() => { game.care(selected.id); close(); }} onUproot={() => { game.uproot(selected.id); close(); }} onHarvest={() => { const success = game.harvest(selected.id); if (success) close(); return success; }} />}
   </>;
   if (!game.ready) return <main className="loading"><Icon name="leaf" /><p>正在唤醒这片沃野…</p></main>;
-  if (game.auth?.authenticated && game.favlistsLoading) return <main className="loading"><Icon name="folder" /><p>正在读取你的知乎收藏…</p><small>收藏同步完成后就可以继续</small></main>;
+  if (game.auth?.authenticated && game.favlistsLoading) return <main className="loading"><FractalLoader /></main>;
   return <main className={"game-shell " + (!farm.entered ? "title-screen" : "")}>
     <div className="scene-background"><AssetImage asset={(farm.entered ? game.season : game.workspace.welcomeSeason) === "spring" ? (farm.entered ? farmAssets.scenes.springMain! : farmAssets.scenes.springWelcome!) : (farm.entered ? farmAssets.scenes.main : farmAssets.scenes.welcome ?? farmAssets.scenes.main)} fallback={<SceneBackdrop />} /></div>
     <header className="game-hud"><div className="brand"><span className="brand-mark"><Icon name="leaf" /></span><span>看山沃野<small>让收藏重新长出来</small></span></div>
