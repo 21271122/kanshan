@@ -1,9 +1,12 @@
 "use client";
 import { durationForEvent } from "../../lib/farm-assets";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { demoItems, mergeCollectionItems, parseCollectionImport } from "../../lib/farm/catalog";
-import { DEMO_DURATION, FarmAction, FarmEvent, Mode, emptyFarm, eligibleItems, makeCrop, reduceFarm, stageOf, type Workspace } from "../../lib/farm/model";
-import { LEGACY_KEY, STORAGE_KEY, initialWorkspace, migrateLegacy, restoreWorkspace, validDestination } from "../../lib/farm/storage";
+import { demoItems, mergeCollectionItems } from "../../lib/farm/catalog";
+import { DEMO_DURATION, FarmAction, FarmEvent, Mode, emptyFarm, eligibleItems, makeCrop, reduceFarm, roundProgress, stageOf, type ContentItem, type Workspace } from "../../lib/farm/model";
+import { LEGACY_KEY, STORAGE_KEY, favoritesStorageKey, initialPersonalWorkspace, initialWorkspace, personalStorageKey, restorePersonalWorkspace, restoreWorkspace } from "../../lib/farm/storage";
+
+type Auth = { authenticated: boolean; user?: { id: string; name: string; avatar?: string }; sessionId?: string };
+type SyncData = { folders: Array<{ token: string; title: string; count: number | null }>; items: ContentItem[]; syncedAt: number };
 
 export function useFarm() {
   const [workspace, setWorkspace] = useState(initialWorkspace);
@@ -13,169 +16,133 @@ export function useFarm() {
   const [notice, setNotice] = useState("");
   const [storageWarning, setStorageWarning] = useState("");
   const [event, setEvent] = useState<FarmEvent | null>(null);
-  const [auth, setAuth] = useState<{ authenticated: boolean; user?: { name: string; avatar?: string } } | null>(null);
+  const [auth, setAuth] = useState<Auth | null>(null);
   const [favlistsLoading, setFavlistsLoading] = useState(false);
   const [favlistsError, setFavlistsError] = useState("");
+  const [syncProgress, setSyncProgress] = useState("");
   const seenMature = useRef(new Set<string>());
-  const commit = useCallback((next: Workspace) => { current.current = next; setWorkspace(next); }, []);
+  const saveBlocked = useRef(false);
+  const accountId = useRef<string | null>(null);
+  const commit = useCallback((next: Workspace, persist = true) => {
+    current.current = next; setWorkspace(next);
+    if (persist && next.mode === "personal" && accountId.current) {
+      try { localStorage.setItem(personalStorageKey(accountId.current), JSON.stringify(next)); } catch { setStorageWarning("浏览器暂时无法保存当前账号的农场。"); }
+    }
+  }, []);
 
-  useEffect(() => {
+  const loadPersonal = useCallback((userId: string, items: ContentItem[] = []) => {
+    accountId.current = userId;
     try {
-      const stored = localStorage.getItem(STORAGE_KEY), legacy = localStorage.getItem(LEGACY_KEY);
-      if (stored) commit(restoreWorkspace(stored));
-      else if (legacy) { commit(migrateLegacy(legacy)); setNotice("已找回原来的演示农场。旧记录保留，未记录的日期显示为未知。"); }
-    } catch { setStorageWarning("未能读取本地存档。当前可继续体验；原存档保留，请先导出备份或在设置中重建。"); }
-    setNow(Date.now()); setReady(true);
+      const raw = localStorage.getItem(personalStorageKey(userId));
+      const next = raw ? restorePersonalWorkspace(raw, items) : initialPersonalWorkspace(items);
+      commit(next, false);
+    } catch { commit(initialPersonalWorkspace(items), false); setNotice("当前账号没有可读取的本地农场存档，将从空农场开始。"); }
   }, [commit]);
+
+  const syncFavorites = useCallback(async (user: Auth["user"], cached: SyncData | null) => {
+    if (!user?.id) return;
+    setFavlistsLoading(true); setFavlistsError(""); setSyncProgress("正在读取收藏夹列表…");
+    try {
+      const response = await fetch("/api/favlists", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok || data.error) throw new Error(data.error || "知乎收藏夹读取失败");
+      const folders: Array<{ token: string; title: string; count: number | null }> = (data.items || []).map((x: any) => ({ token: String(x.token), title: String(x.title || "未命名收藏夹"), count: typeof x.count === "number" ? x.count : null }));
+      const failed = (data.items || []).find((x: any) => x.error);
+      if (failed) throw new Error(failed.error);
+      const incoming = (data.items || []).flatMap((x: any) => Array.isArray(x.contents) ? x.contents : []) as ContentItem[];
+      const deduped = Array.from(new Map(incoming.filter(i => i && typeof i.url === "string").map(i => [i.url, i])).values()).slice(0, 2000);
+      const nextCache = { userId: user.id, syncedAt: Date.now(), folders, items: deduped };
+      localStorage.setItem(favoritesStorageKey(user.id), JSON.stringify(nextCache));
+      const w = current.current;
+      const oldFolders = w.favoriteFolders.map(f => f.token + ":" + f.title).sort().join("|");
+      const newFolders = folders.map(f => f.token + ":" + f.title).sort().join("|");
+      const collectionChanged = oldFolders !== newFolders;
+      const merged = mergeCollectionItems(w.personalItems, deduped);
+      const selectedSources = collectionChanged ? folders.map(f => f.title) : w.personal.sources.filter(s => folders.some(f => f.title === s));
+      const next = { ...w, mode: "personal" as const, personalItems: merged, favoritePool: mergeCollectionItems(w.favoritePool, deduped) as any, favoriteFolders: folders.map(f => ({ ...f, total: f.count ?? 0, urls: deduped.filter(i => i.favlist === f.title).map(i => i.url), fetchedAt: nextCache.syncedAt })), personal: { ...w.personal, sources: selectedSources.length ? selectedSources : folders.map(f => f.title), entered: true } };
+      commit(next);
+      setNotice(deduped.length ? "收藏已同步，可以开始种植。" : "账号暂无收藏，已进入空个人农场。");
+      return nextCache;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "知乎收藏夹读取失败";
+      setFavlistsError(message);
+      if (cached && cached.syncedAt && Date.now() - cached.syncedAt <= 3 * 86_400_000) {
+        setNotice("同步失败，已使用 " + new Date(cached.syncedAt).toLocaleString("zh-CN") + " 的收藏缓存。");
+        const w = current.current;
+        const merged = mergeCollectionItems(w.personalItems, cached.items);
+        commit({ ...w, mode: "personal", personalItems: merged, favoritePool: mergeCollectionItems(w.favoritePool, cached.items) as any, personal: { ...w.personal, entered: true, sources: w.personal.sources.length ? w.personal.sources : cached.folders.map(f => f.title) } });
+        return cached;
+      }
+      throw error;
+    } finally { setFavlistsLoading(false); setSyncProgress(""); }
+  }, [commit]);
+
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/auth/status", { cache: "no-store" }).then(r => r.json()).then(next => {
-      if (cancelled) return; setAuth(next);
-      if (next.authenticated) {
-        setFavlistsLoading(true); setFavlistsError("");
-        return fetch("/api/favlists", { cache: "no-store" }).then(async r => { const data = await r.json(); if (!r.ok) throw new Error(data.error || "知乎收藏夹读取失败"); return data; }).then(data => {
-          if (cancelled) return;
-          const incoming = (data.items || []).flatMap((x: any) => x.contents || []);
-          if (incoming.length) {
-            const w = current.current, pool = mergeCollectionItems(w.favoritePool as any, incoming) as any, personalItems = mergeCollectionItems(w.personalItems, incoming);
-            const sources: string[] = (data.items || []).map((x: any) => typeof x.title === "string" ? x.title : "").filter((x: string) => Boolean(x));
-            commit({ ...w, mode: "personal", personalItems, favoritePool: pool, personal: { ...w.personal, sources } });
-          }
-        }).catch(e => { if (!cancelled) setFavlistsError(e instanceof Error ? e.message : "知乎收藏夹读取失败"); }).finally(() => { if (!cancelled) setFavlistsLoading(false); });
-      }
-    }).catch(() => { if (!cancelled) setAuth({ authenticated: false }); });
-    return () => { cancelled = true; };
-  }, [commit]);
-  const saveBlocked = useRef(false);
-  useEffect(() => {
-    if (!ready) return;
-    if (storageWarning.startsWith("未能读取")) { saveBlocked.current = true; return; }
-    if (saveBlocked.current) return;
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace)); setStorageWarning(""); }
-    catch { setStorageWarning("浏览器暂时无法保存。当前操作仍有效，关闭页面前请在设置中导出备份。"); }
-  }, [workspace, ready, storageWarning]);
-  useEffect(() => {
-    const tick = () => setNow(Date.now());
-    const timer = window.setInterval(tick, 1000);
-    document.addEventListener("visibilitychange", tick);
-    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
-  }, []);
-  useEffect(() => {
-    if (!notice) return;
-    const timer = setTimeout(() => setNotice(""), 5800);
-    return () => clearTimeout(timer);
-  }, [notice]);
-  useEffect(() => {
-    if (!event) return;
-    const timer = setTimeout(() => setEvent(null), durationForEvent(event.type));
-    return () => clearTimeout(timer);
-  }, [event]);
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (e.key !== STORAGE_KEY || !e.newValue) return;
-      try { commit(restoreWorkspace(e.newValue)); setNotice("已同步同一浏览器其他窗口的最新农场。"); } catch { /* Ignore invalid remote saves. */ }
+    const boot = async () => {
+      const authParams = new URLSearchParams(window.location.search); if (authParams.get("auth") === "error") setNotice(authParams.get("reason") || "知乎登录未完成，请重试。");
+      try {
+        const demoRaw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_KEY);
+        if (demoRaw) commit(restoreWorkspace(demoRaw), false);
+      } catch { setStorageWarning("未能读取本地演示存档。"); }
+      setNow(Date.now()); setReady(true);
+      try {
+        const next = await fetch("/api/auth/status", { cache: "no-store" }).then(r => r.json()) as Auth;
+        if (cancelled) return;
+        setAuth(next);
+        if (!next.authenticated || !next.user?.id) { accountId.current = null; commit({ ...current.current, mode: "demo" }, false); return; }
+        const uid = next.user.id;
+        let cached: SyncData | null = null;
+        try { const raw = localStorage.getItem(favoritesStorageKey(uid)); if (raw) cached = JSON.parse(raw); } catch {}
+        loadPersonal(uid, cached?.items || []);
+        const sessionKey = "kanshan-session-" + uid;
+        const sameSession = sessionStorage.getItem(sessionKey) === next.sessionId;
+        if (sameSession && cached && Date.now() - cached.syncedAt <= 30 * 60_000) {
+          const w = current.current;
+          const merged = mergeCollectionItems(w.personalItems, cached.items);
+          const folders = cached.folders || [];
+          commit({ ...w, mode: "personal", personalItems: merged, favoritePool: mergeCollectionItems(w.favoritePool, cached.items) as any, favoriteFolders: folders.map(f => ({ ...f, total: f.count ?? 0, urls: cached!.items.filter(i => i.favlist === f.title).map(i => i.url), fetchedAt: cached!.syncedAt })), personal: { ...w.personal, entered: true, sources: w.personal.sources.length ? w.personal.sources : folders.map(f => f.title) } });
+          setNotice("已使用最近同步的收藏。");
+        } else {
+          try { await syncFavorites(next.user, cached); } catch { if (!cancelled) { accountId.current = null; setAuth({ authenticated: false }); commit({ ...current.current, mode: "demo", demo: { ...current.current.demo, entered: false } }, false); setNotice("收藏同步失败，请重试登录或进入演示农场。"); } }
+        }
+        sessionStorage.setItem(sessionKey, next.sessionId || String(Date.now()));
+      } catch { if (!cancelled) setAuth({ authenticated: false }); }
     };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, [commit]);
+    void boot(); return () => { cancelled = true; };
+  }, [commit, loadPersonal, syncFavorites]);
+
+  useEffect(() => { if (!ready) return; try { if (workspace.mode === "demo") localStorage.setItem(STORAGE_KEY, JSON.stringify(workspace)); } catch { setStorageWarning("浏览器暂时无法保存当前农场。"); } }, [workspace, ready]);
+  useEffect(() => { const flush = () => { if (accountId.current && current.current.mode === "personal") { try { localStorage.setItem(personalStorageKey(accountId.current), JSON.stringify(current.current)); } catch {} } }; window.addEventListener("beforeunload", flush); return () => window.removeEventListener("beforeunload", flush); }, []);
+  useEffect(() => { const tick = () => setNow(Date.now()); const timer = window.setInterval(tick, 1000); document.addEventListener("visibilitychange", tick); return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); }; }, []);
+  useEffect(() => { if (!notice) return; const timer = setTimeout(() => setNotice(""), 5800); return () => clearTimeout(timer); }, [notice]);
+  useEffect(() => { if (!event) return; const timer = setTimeout(() => setEvent(null), durationForEvent(event.type)); return () => clearTimeout(timer); }, [event]);
 
   const mode = workspace.mode, farm = workspace[mode], items = mode === "demo" ? demoItems : workspace.favoritePool.filter(i => !workspace.consumedUrls.includes(i.url));
-  useEffect(() => {
-    if (!ready || !farm.entered) return;
-    const w = current.current, catalog = w.mode === "demo" ? demoItems : w.favoritePool;
-    const next = reduceFarm(w[w.mode], { type: "CHECK_ACHIEVEMENTS", now }, catalog);
-    if (next !== w[w.mode]) commit({ ...w, [w.mode]: next });
-  }, [ready, now, farm, commit]);
-  useEffect(() => {
-    if (!ready || !now) return;
-    const mature = farm.crops.filter(c => stageOf(c, now) === "mature");
-    const found = mature.find(c => !seenMature.current.has(mode + c.id));
-    mature.forEach(c => seenMature.current.add(mode + c.id));
-    if (found) { setEvent({ type: "MATURE", plot: found.plot, at: Date.now() }); if (farm.entered) setNotice("有一段回忆成熟了。它会一直等你，随时来收获。"); }
-  }, [farm.crops, farm.entered, mode, ready, now]);
-  function dispatch(action: FarmAction) {
-    const w = current.current, catalog = w.mode === "demo" ? demoItems : w.favoritePool;
-    const nextFarm = reduceFarm(w[w.mode], action, catalog);
-    if (nextFarm === w[w.mode]) return false;
-    commit({ ...w, [w.mode]: nextFarm }); return true;
-  }
-  function start(mode: Mode = current.current.mode) {
-    const w = current.current, catalog = mode === "demo" ? demoItems : w.personalItems, state = w[mode];
-    const first = eligibleItems(state, catalog)[0];
-    const guide = first ? { ...makeCrop(0, first.id, Date.now(), mode, .5), plantedAt: Date.now() - (mode === "demo" ? DEMO_DURATION : 600_000) - 1000 } : undefined;
-    commit({ ...w, mode, [mode]: reduceFarm(state, { type: "ENTER", guide }, catalog) });
-  }
+  useEffect(() => { if (!ready || !farm.entered) return; const w = current.current, catalog = w.mode === "demo" ? demoItems : w.favoritePool; const next = reduceFarm(w[w.mode], { type: "CHECK_ACHIEVEMENTS", now }, catalog); if (next !== w[w.mode]) commit({ ...w, [w.mode]: next }); }, [ready, now, farm, commit]);
+  useEffect(() => { if (!ready || !now) return; const mature = farm.crops.filter(c => stageOf(c, now) === "mature"); const found = mature.find(c => !seenMature.current.has(mode + c.id)); mature.forEach(c => seenMature.current.add(mode + c.id)); if (found) { setEvent({ type: "MATURE", plot: found.plot, at: Date.now() }); setNotice("有一段回忆成熟了。它会一直等你，随时来收获。"); } }, [farm.crops, farm.entered, mode, ready, now]);
+
+  function dispatch(action: FarmAction) { const w = current.current, catalog = w.mode === "demo" ? demoItems : w.favoritePool; const nextFarm = reduceFarm(w[w.mode], action, catalog); if (nextFarm === w[w.mode]) return false; commit({ ...w, [w.mode]: nextFarm }); return true; }
+  function start(target: Mode = current.current.mode) { const w = current.current, catalog = target === "demo" ? demoItems : w.favoritePool; const state = w[target]; const first = target === "demo" ? eligibleItems(state, catalog)[0] : undefined; const guide = first ? { ...makeCrop(0, first.id, Date.now(), target, .5), plantedAt: Date.now() - DEMO_DURATION - 1000 } : undefined; commit({ ...w, mode: target, [target]: reduceFarm(state, { type: "ENTER", guide }, catalog) }); }
   function plant(plot: number) {
     const w = current.current, state = w[w.mode], catalog = w.mode === "demo" ? demoItems : w.favoritePool;
     if (state.crops.some(c => c.plot === plot)) return;
-    const eligible = eligibleItems(state, catalog);
-    if (!eligible.length) { setNotice(catalog.length ? "这些收藏已种下或已收获。看看成熟果实，或在内容来源里添加收藏。" : "先在内容来源里导入一些旧收藏，再来播种吧。"); return; }
+    let eligible = eligibleItems(state, catalog);
+    if (!eligible.length && roundProgress(state, catalog).complete) { dispatch({ type: "NEXT_ROUND" }); const refreshed = current.current; eligible = eligibleItems(refreshed[refreshed.mode], catalog); }
+    if (!eligible.length) { setNotice(catalog.length ? "这些收藏已种下或已收获。" : "当前没有可用于农场的收藏。"); return; }
     const chosen = eligible[Math.floor(Math.random() * eligible.length)];
-    if (dispatch({ type: "PLANT", crop: makeCrop(plot, chosen.id, Date.now(), w.mode) })) {
-      setEvent({ type: "PLANT", plot, at: Date.now() }); setNotice("种好啦！这段回忆来自「" + chosen.favlist + "」。");
-    }
+    if (dispatch({ type: "PLANT", crop: makeCrop(plot, chosen.id, Date.now(), w.mode) })) { setEvent({ type: "PLANT", plot, at: Date.now() }); setNotice("种好啦！这段回忆来自「" + chosen.favlist + "」。"); }
   }
-  function care(id: string) {
-    const crop = current.current[current.current.mode].crops.find(c => c.id === id);
-    if (crop && dispatch({ type: "CARE", id, now: Date.now() })) {
-      setEvent({ type: "CARE", plot: crop.plot, at: Date.now() }); setNotice("水浇好啦，早一点见面。成熟时间缩短约 10%。");
-    }
-  }
-  function uproot(id: string) {
-    const crop = current.current[current.current.mode].crops.find(c => c.id === id);
-    dispatch({ type: "UPROOT", id }); if (crop) setEvent({ type: "UPROOT", plot: crop.plot, at: Date.now() });
-    setNotice("作物收回了土里，收藏回到待重温池，随时可以再种。");
-  }
-  function harvest(id: string) {
-    const w = current.current, crop = w[w.mode].crops.find(c => c.id === id), catalog = w.mode === "demo" ? demoItems : w.favoritePool;
-    const item = catalog.find(i => i.id === crop?.itemId);
-    if (!crop || !item || stageOf(crop, Date.now()) !== "mature" || !validDestination(item, w.mode)) return false;
-    // Synchronous to the click: a blocked popup must never count as a harvest.
-    const popup = window.open("about:blank", "_blank");
-    if (!popup) { setNotice("浏览器拦截了新标签页，请允许此站点弹窗后再打开；这株作物仍然保留。"); return false; }
-    try { popup.opener = null; popup.location.href = item.url; }
-    catch { popup.close(); setNotice("原帖暂时无法打开，作物仍为你保留。"); return false; }
-    dispatch({ type: "HARVEST", id, now: Date.now() });
-    if (w.mode === "personal") { const next = current.current; commit({ ...next, favoritePool: next.favoritePool.filter(i => i.url !== item.url), consumedUrls: [...new Set([...next.consumedUrls, item.url])] }); }
-    setEvent({ type: "HARVEST", plot: crop.plot, at: Date.now() });
-    setNotice(w.mode === "demo" ? "体验收获 +1。演示话题已在知乎搜索中打开。" : "重温 +1。原帖已打开，也收进了你的收获记录。");
-    return true;
-  }
-  function importCollections(text: string) {
-    const incoming = parseCollectionImport(text), w = current.current;
-    const personalItems = mergeCollectionItems(w.personalItems, incoming);
-    const pool = mergeCollectionItems(w.favoritePool as any, incoming) as any;
-    if (pool.length > 2000) throw new Error("个人农场最多保留 2000 篇收藏，请减少本次导入数量。");
-    const sources = [...new Set([...w.personal.sources, ...incoming.map(i => i.favlist)])];
-    commit({ ...w, mode: "personal", personalItems, favoritePool: pool, personal: { ...w.personal, sources } });
-    setNotice("已导入 " + incoming.length + " 篇收藏。演示农场和个人农场分别保存。");
-    return incoming.length;
-  }
-  function reset(mode: Mode, eraseImportedItems = false) {
-    const w = current.current;
-    saveBlocked.current = false; setStorageWarning("");
-    commit({ ...w, ...(mode === "personal" && eraseImportedItems ? { personalItems: [], favoritePool: [], consumedUrls: [] } : {}), [mode]: emptyFarm(mode === "demo" ? demoItems : eraseImportedItems ? [] : w.personalItems) });
-    setNotice(eraseImportedItems && mode === "personal" ? "个人农场和本机导入的收藏已清除，不影响知乎原收藏。" : "当前农场记录已清除，收藏内容仍然保留。");
-  }
-  function exportSave() {
-    let saved = JSON.stringify(current.current, null, 2);
-    if (saveBlocked.current) try { saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_KEY) ?? saved; } catch { /* Export in-memory state. */ }
-    const url = URL.createObjectURL(new Blob([saved], { type: "application/json" }));
-    const a = document.createElement("a"); a.href = url; a.download = "kanshan-farm-backup.json"; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-  function restoreSave(text: string) {
-    const next = restoreWorkspace(text); saveBlocked.current = false; setStorageWarning(""); commit(next); setNotice("农场备份已恢复。");
-  }
+  function care(id: string) { const crop = current.current[current.current.mode].crops.find(c => c.id === id); if (crop && dispatch({ type: "CARE", id, now: Date.now() })) { setEvent({ type: "CARE", plot: crop.plot, at: Date.now() }); setNotice("水浇好啦，早一点见面。"); } }
+  function uproot(id: string) { const crop = current.current[current.current.mode].crops.find(c => c.id === id); dispatch({ type: "UPROOT", id }); if (crop) setEvent({ type: "UPROOT", plot: crop.plot, at: Date.now() }); }
+  function harvest(id: string) { const w = current.current, crop = w[w.mode].crops.find(c => c.id === id), catalog = w.mode === "demo" ? demoItems : w.favoritePool, item = catalog.find(i => i.id === crop?.itemId); if (!crop || !item || stageOf(crop, Date.now()) !== "mature") return false; const popup = window.open("about:blank", "_blank"); if (!popup) { setNotice("浏览器拦截了新标签页，请允许弹窗后再试。"); return false; } try { popup.opener = null; popup.location.href = item.url; } catch { popup.close(); return false; } dispatch({ type: "HARVEST", id, now: Date.now() }); if (w.mode === "personal") commit({ ...current.current, consumedUrls: [...new Set([...current.current.consumedUrls, item.url])] }); setEvent({ type: "HARVEST", plot: crop.plot, at: Date.now() }); setNotice(w.mode === "demo" ? "体验收获 +1。" : "重温 +1。原帖已打开。"); return true; }
+  function importCollections() { setNotice("个人收藏由知乎同步提供。"); return 0; }
+  function reset(mode: Mode) { saveBlocked.current = false; commit({ ...current.current, [mode]: emptyFarm(mode === "demo" ? demoItems : current.current.personalItems) }); }
+  function exportSave() {}
+  function restoreSave() {}
   function login() { window.location.href = "/api/auth/zhihu?returnTo=personal"; }
-  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); setAuth({ authenticated: false }); commit({ ...current.current, mode: "demo" }); setNotice("已退出知乎账号，当前为演示农场。"); }
-  function switchMode(mode: Mode) { if (mode === "personal" && !auth?.authenticated) { login(); return; } commit({ ...current.current, mode }); setNotice(mode === "demo" ? "已回到演示农场。" : "已回到个人收藏农场。"); }
-  return { ready, now, mode, farm, items, workspace, event, notice, storageWarning, auth, favlistsLoading, favlistsError, start, plant, care, uproot, harvest, importCollections, reset, exportSave, restoreSave, switchMode, login, logout, dispatch, setNotice };
+  async function logout() { await fetch("/api/auth/logout", { method: "POST" }); accountId.current = null; setAuth({ authenticated: false }); commit({ ...current.current, mode: "demo", demo: { ...current.current.demo, entered: false } }, false); setNotice("已退出知乎账号。"); }
+  function switchMode(target: Mode) { if (target === "personal" && !auth?.authenticated) { login(); return; } commit({ ...current.current, mode: target }); }
+  return { ready, now, mode, farm, items, workspace, event, notice, storageWarning, auth, favlistsLoading, favlistsError, syncProgress, start, plant, care, uproot, harvest, importCollections, reset, exportSave, restoreSave, switchMode, login, logout, dispatch, setNotice };
 }
-
-
-
-
-
-
-
 

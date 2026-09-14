@@ -25,13 +25,13 @@ export function CropPanel({ crop, item, now, mode, onClose, onCare, onUproot, on
   </Dialog>;
 }
 export function SourcePanel({ game, onClose }: { game: FarmController; onClose: () => void }) {
-  const sources = [...new Set(game.items.map(i => i.favlist))];
+  const sources = game.workspace.favoriteFolders.length ? game.workspace.favoriteFolders.map(f => f.title) : [...new Set(game.items.map(i => i.favlist))];
   const [draft, setDraft] = useState(game.farm.sources.length ? game.farm.sources : sources);
   return <Dialog title="想从哪里，重新遇见？" eyebrow="内容来源" onClose={onClose}>
     <p className="muted">默认选中全部收藏夹。你决定范围，看山挑选惊喜。</p>
     {game.favlistsLoading && <p className="muted">正在从知乎读取你的收藏夹…</p>}
     {game.favlistsError && <p className="form-error" role="alert">{game.favlistsError}</p>}
-    <div className="source-list">{sources.map(source => <label key={source}><input type="checkbox" checked={draft.includes(source)} onChange={() => setDraft(old => old.includes(source) ? old.filter(s => s !== source) : [...old, source])}/><span className="folder-icon"><Icon name="folder"/></span><span><strong>{source}</strong><small>{game.items.filter(i => i.favlist === source).length} 篇 · {game.mode === "demo" ? "演示收藏" : "知乎收藏夹"}</small></span></label>)}</div>
+    <div className="source-list">{sources.map(source => <label key={source}><input type="checkbox" checked={draft.includes(source)} onChange={() => setDraft(old => old.includes(source) ? old.filter(s => s !== source) : [...old, source])}/><span className="folder-icon"><Icon name="folder"/></span><span><strong>{source}</strong><small>{game.workspace.favoritePool.filter(i => i.favlist === source).length} 篇 · {game.mode === "demo" ? "演示收藏" : "知乎收藏夹"}</small></span></label>)}</div>
     {!sources.length && <p className="empty-state">还没有可用于农场的收藏。先在知乎收藏一些喜欢的内容吧。</p>}
     <button className="primary full" disabled={!draft.length || game.favlistsLoading} onClick={() => { game.dispatch({ type: "SOURCES", sources: draft }); game.setNotice("来源已更新，已种下的作物会保留。"); onClose(); }}>就从这些收藏里开始 <Icon name="arrow"/></button>
     {game.mode === "demo" && <p className="demo-note">当前为演示模式。登录知乎后，会自动读取你的收藏夹。</p>}
@@ -59,24 +59,11 @@ export function AchievementPanel({ farm, onClose }: { farm: FarmState; onClose: 
   </Dialog>;
 }
 export function SettingsPanel({ game, onClose }: { game: FarmController; onClose: () => void }) {
-  const [eraseImportedItems, setEraseImportedItems] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false), [error, setError] = useState(""), [backup, setBackup] = useState("");
+  const [confirmReset, setConfirmReset] = useState(false);
   return <Dialog title="按自己的节奏来" eyebrow="农场设置" onClose={onClose}>
     {game.mode === "demo" && <div className="setting-row"><div><strong>演示时间</strong><small>让地里的作物快进 40 秒</small></div><button className="secondary" disabled={!game.farm.crops.length} onClick={() => { game.dispatch({ type: "ADVANCE", milliseconds: 40_000 }); game.setNotice("演示时间已前进 40 秒。"); onClose(); }}><Icon name="clock" />快进</button></div>}
-    <div className="setting-row"><div><strong>备份农场</strong><small>导出本地记录，方便恢复</small></div><button className="secondary" onClick={game.exportSave}><Icon name="download" />导出备份</button></div>
-    <label className="file-button"><Icon name="folder" />选择农场备份<input type="file" accept=".json,application/json" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 10_000_000) { setError("备份过大，请选择 10 MB 以内的文件。"); return; } try { setBackup(await f.text()); setError(""); } catch { setError("备份未能读取。"); } }} /></label>
-    {backup && <div className="inline-confirm"><p>恢复将替换当前浏览器内的两座农场。建议先导出备份。</p><button className="secondary" onClick={() => { try { game.restoreSave(backup); onClose(); } catch { setError("这不是有效的 V2 农场备份，原存档没有改动。"); } }}>确认恢复备份</button><button className="quiet" onClick={() => setBackup("")}>取消</button></div>}
-    {error && <p className="form-error" role="alert">{error}</p>}
-    <p className="fine-print">动画跟随系统的“减少动态效果”设置。知乎登录已接通；农场状态保存在此浏览器，跨设备同步尚未接入。</p>
-    {confirmReset ? <div className="inline-confirm"><p>清除当前{game.mode === "demo" ? "演示" : "个人"}农场的作物与收获记录？导入的收藏默认保留。</p>{game.mode === "personal" && <label className="erase-option"><input type="checkbox" checked={eraseImportedItems} onChange={e => setEraseImportedItems(e.target.checked)}/>同时移除本机导入的收藏（不影响知乎）</label>}<button className="danger-button" onClick={() => { game.reset(game.mode, eraseImportedItems); onClose(); }}>确认清除当前农场</button><button className="quiet" onClick={() => setConfirmReset(false)}>保留</button></div> : <button className="quiet danger-text" onClick={() => setConfirmReset(true)}>清除当前农场记录</button>}
+    <p className="fine-print">农场状态保存在此浏览器，跨设备同步尚未接入。</p>
+    {confirmReset ? <div className="inline-confirm"><p>清除当前{game.mode === "demo" ? "演示" : "个人"}农场的作物与收获记录？</p><button className="danger-button" onClick={() => { game.reset(game.mode); onClose(); }}>确认清除当前农场</button><button className="quiet" onClick={() => setConfirmReset(false)}>保留</button></div> : <button className="quiet danger-text" onClick={() => setConfirmReset(true)}>清除当前农场记录</button>}
   </Dialog>;
 }
-
-
-
-
-
-
-
-
 

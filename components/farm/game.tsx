@@ -9,7 +9,7 @@ import { useFarm } from "./use-farm";
 
 type Panel = "sources" | "log" | "help" | "achievements" | "settings" | { plot: number } | null;
 export default function Game() {
-  const game = useFarm(), [panel, setPanel] = useState<Panel>(null);
+  const game = useFarm(), [panel, setPanel] = useState<Panel>(null), [accountMenu, setAccountMenu] = useState(false);
   const { farm, items, mode, now } = game;
   const mature = farm.crops.filter(c => stageOf(c, now) === "mature").length;
   useEffect(() => { setPanel(null); }, [mode]);
@@ -30,7 +30,7 @@ export default function Game() {
     <div className="scene-background"><AssetImage asset={farm.entered ? farmAssets.scenes.main : farmAssets.scenes.welcome ?? farmAssets.scenes.main} fallback={<SceneBackdrop />} /></div>
     <header className="game-hud"><div className="brand"><span className="brand-mark"><Icon name="leaf" /></span><span>看山沃野<small>让收藏重新长出来</small></span></div>
       {farm.entered && <button className="hud-source" onClick={() => setPanel("sources")}><Icon name="folder" /><span><small>内容来源</small><strong>{farm.sources.length ? farm.sources[0] + (farm.sources.length > 1 ? " 等 " + farm.sources.length + " 个收藏夹" : "") : "还未选择收藏夹"}</strong></span><span className="source-edit">查看</span></button>}
-      <div className="hud-right"><button className={"hud-account " + (game.auth?.authenticated ? "" : "demo")} onClick={() => game.auth?.authenticated ? game.logout() : game.login()} aria-label={game.auth?.authenticated ? "退出知乎账号" : "登录知乎账号"}><Icon name={game.auth?.authenticated ? "user" : "user"}/><span><strong>{game.auth?.authenticated ? (game.auth.user?.name || "已登录") : "演示模式"}</strong><small>{game.auth?.authenticated ? "点击退出 / 切换账号" : "登录后读取我的收藏"}</small></span></button>{farm.entered && <button className="hud-progress" onClick={() => setPanel("log")} aria-label="查看收获记录"><span className="progress-ring"><Icon name="leaf" /></span><span><strong>{farm.log.length}</strong><small>已收获</small></span></button>}<button className="icon-button hud-settings" onClick={() => setPanel("settings")} aria-label="农场设置"><Icon name="settings" /></button></div>
+      <div className="hud-right"><div className="account-wrap"><button className={"hud-account " + (game.auth?.authenticated ? "" : "demo")} onClick={() => game.auth?.authenticated ? setAccountMenu(v => !v) : game.login()} aria-label={game.auth?.authenticated ? "账号菜单" : "登录知乎账号"}><Icon name="user"/><span><strong>{game.auth?.authenticated ? (game.auth.user?.name || "已登录") : "演示模式"}</strong><small>{game.auth?.authenticated ? "账号菜单" : "登录后读取我的收藏"}</small></span></button>{accountMenu && game.auth?.authenticated && <div className="account-menu"><button onClick={() => { setAccountMenu(false); game.login(); }}>切换账号</button><button onClick={() => { setAccountMenu(false); void game.logout(); }}>退出登录</button></div>}</div>{farm.entered && <button className="hud-progress" onClick={() => setPanel("log")} aria-label="查看收获记录"><span className="progress-ring"><Icon name="leaf" /></span><span><strong>{farm.log.length}</strong><small>已收获</small></span></button>}<button className="icon-button hud-settings" onClick={() => setPanel("settings")} aria-label="农场设置"><Icon name="settings" /></button></div>
     </header>
     {farm.entered ? <>
       <FarmScene crops={farm.crops} now={now} event={game.event} onPlot={plot => { if (farm.crops.some(c => c.plot === plot)) setPanel({ plot }); else game.plant(plot); }} onMap={() => setPanel("achievements")} />
@@ -43,7 +43,4 @@ export default function Game() {
     {overlays}
   </main>;
 }
-
-
-
 

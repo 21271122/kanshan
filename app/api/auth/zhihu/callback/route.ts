@@ -14,11 +14,12 @@ export async function GET(request: Request) {
   const userResponse = await fetch("https://openapi.zhihu.com/user", { headers: { Authorization: "Bearer " + token.access_token } });
   if (!userResponse.ok) { console.error("Zhihu user request failed", userResponse.status); return NextResponse.redirect(new URL("/?auth=error&reason=" + encodeURIComponent("知乎账号信息读取失败（HTTP " + userResponse.status + "）。"), request.url)); }
   const user = await userResponse.json() as Record<string, unknown>;
-  const session = Buffer.from(JSON.stringify({ token: token.access_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000, user: { id: user.id ?? user.url_token ?? "", name: user.name ?? user.nickname ?? "知乎用户", avatar: user.avatar_url ?? "" } })).toString("base64url");
+  const nested = (user.data && typeof user.data === "object" ? user.data : {}) as Record<string, unknown>;
+  const userId = String(user.id ?? user.url_token ?? user.uid ?? nested.id ?? nested.url_token ?? nested.uid ?? (token.access_token ? "token-" + token.access_token.slice(0, 24) : ""));
+  const session = Buffer.from(JSON.stringify({ sessionId: crypto.randomUUID(), token: token.access_token, expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000, user: { id: userId, name: user.name ?? user.nickname ?? nested.name ?? nested.nickname ?? "知乎用户", avatar: user.avatar_url ?? nested.avatar_url ?? "" } })).toString("base64url");
   const response = NextResponse.redirect(new URL("/?auth=success", request.url));
-  response.cookies.set("kanshan_session", session, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: token.expires_in ?? 3600, path: "/" });
+  response.cookies.set("kanshan_session", session, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" });
   response.cookies.set("kanshan_oauth_state", "", { httpOnly: true, maxAge: 0, path: "/" });
   return response;
 }
-
 

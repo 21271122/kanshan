@@ -106,3 +106,4 @@
 @media(max-width:700px){.account-loading{left:15px;right:15px;transform:none;min-width:0;font-size:11px}.account-loading span{display:none}}
 
 .field-boundary{display:none}
+.account-wrap{position:relative}.account-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:30;display:grid;min-width:120px;padding:6px;border:1px solid #ccd5be;border-radius:10px;background:#fffdf3;box-shadow:0 8px 24px #48553a22}.account-menu button{border:0;background:transparent;padding:8px 10px;text-align:left;color:#526c46;border-radius:7px;cursor:pointer}.account-menu button:hover{background:#eef3df}
