@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { demoItems, mergeCollectionItems } from "../../lib/farm/catalog";
 import { DEMO_DURATION, FarmAction, FarmEvent, Mode, emptyFarm, eligibleItems, makeCrop, reduceFarm, roundProgress, stageOf, memorialFamilyKey, seasonForDate, seasonalFamilies, type ContentItem, type Workspace, type FarmState, type Season, type SeasonMode } from "../../lib/farm/model";
 import { LEGACY_KEY, STORAGE_KEY, favoritesStorageKey, initialPersonalWorkspace, initialWorkspace, personalStorageKey, restorePersonalWorkspace, restoreWorkspace } from "../../lib/farm/storage";
+import { makeFarmChatSnapshot } from "../../lib/farm/chat-context";
 
 type Auth = { authenticated: boolean; user?: { id: string; name: string; avatar?: string }; sessionId?: string };
 type SyncData = { folders: Array<{ token: string; title: string; count: number | null }>; items: ContentItem[]; syncedAt: number };
@@ -155,6 +156,7 @@ export function useFarm() {
   }, [ready, mode, farm.log.length, triggerMemorial]);
   useEffect(() => { if (!ready || !now) return; if (current.current.seasonMode === "auto") { const nextSeason = seasonForDate(new Date(now)); if (nextSeason !== current.current.season) commit({ ...current.current, season: nextSeason, welcomeSeason: nextSeason }); } const mature = farm.crops.filter(c => stageOf(c, now) === "mature"); const found = mature.find(c => !seenMature.current.has(mode + c.id)); mature.forEach(c => seenMature.current.add(mode + c.id)); if (found) { setEvent({ type: "MATURE", plot: found.plot, at: Date.now() }); setNotice("有一段回忆成熟了。它会一直等你，随时来收获。"); } }, [farm.crops, farm.entered, mode, ready, now]);
 
+  const getChatSnapshot = useCallback(() => { const w = current.current, state = w[w.mode], mature = state.crops.filter(crop => stageOf(crop, Date.now()) === "mature").length; return makeFarmChatSnapshot(w, state, !!auth?.authenticated, auth?.user?.name, mature); }, [auth]);
   function dispatch(action: FarmAction) { const w = current.current, catalog = w.mode === "demo" ? demoItems : w.favoritePool; const nextFarm = reduceFarm(w[w.mode], action, catalog); if (nextFarm === w[w.mode]) return false; commit({ ...w, [w.mode]: nextFarm }); return true; }
   function start(target: Mode = current.current.mode) { const w = current.current, catalog = target === "demo" ? demoItems : w.favoritePool; const state = w[target]; const first = target === "demo" ? eligibleItems(state, catalog)[0] : undefined; const guide = first ? { ...makeCrop(0, first.id, Date.now(), target, .5, w.season), plantedAt: Date.now() - DEMO_DURATION - 1000 } : undefined; commit({ ...w, mode: target, [target]: reduceFarm(state, { type: "ENTER", guide }, catalog) }); }
   function setSeasonMode(mode: SeasonMode, season?: Season) { const w = current.current; const nextSeason = mode === "auto" ? seasonForDate() : (season ?? w.season); commit({ ...w, seasonMode: mode, season: nextSeason, welcomeSeason: nextSeason }); }
@@ -189,6 +191,6 @@ export function useFarm() {
   function login() { window.location.href = "/api/auth/zhihu?returnTo=personal"; }
   async function logout() { await fetch("/api/auth/logout", { method: "POST" }); accountId.current = null; setAuth({ authenticated: false }); commit({ ...current.current, mode: "demo", demo: { ...current.current.demo, entered: false } }, false); setNotice("已退出知乎账号。"); }
   function switchMode(target: Mode) { if (target === "personal" && !auth?.authenticated) { login(); return; } commit({ ...current.current, mode: target }); }
-  return { ready, now, mode, farm, items, workspace, season: workspace.season, seasonMode: workspace.seasonMode, event, memorial, clearMemorial: () => setMemorial(null), notice, storageWarning, auth, favlistsLoading, favlistsError, syncProgress, start, plant, care, uproot, harvest, importCollections, reset, exportSave, restoreSave, switchMode, login, logout, dispatch, setNotice, setSeasonMode };
+  return { ready, now, mode, farm, items, workspace, season: workspace.season, seasonMode: workspace.seasonMode, event, memorial, clearMemorial: () => setMemorial(null), notice, storageWarning, auth, favlistsLoading, favlistsError, syncProgress, start, plant, care, uproot, harvest, importCollections, reset, exportSave, restoreSave, switchMode, login, logout, dispatch, getChatSnapshot, setNotice, setSeasonMode };
 }
 

@@ -1,94 +1,131 @@
 # 看山沃野
 
-把过去收藏的内容种进一座轻量农场，等一段回忆慢慢长出来。
+“看山沃野”是一个把知乎收藏变成轻量农场的 Next.js Demo。用户可以在演示农场中种植、照料和收获作物，也可以通过知乎 OAuth 读取收藏夹，把收藏作为农场内容。刘看山是陪伴用户的北极狐：他可以读取农场统计和用户主动分享的想法，但看不到知乎原帖全文。
 
-## 开始体验
+## 快速开始
 
-```powershell
+需要 Node.js 18.17+（建议 Node.js 20）。
+
+~~~powershell
 npm install
+Copy-Item .env.example .env.local
 npm run dev
-```
+~~~
 
 打开 http://localhost:3000。
 
-- **演示农场**无需账号，首次进入有一株成熟果实。演示标题是示例，收获打开知乎同名话题搜索。
-- **个人农场**可以在“内容来源 → 导入旧收藏”填写标题和知乎回答/文章链接，或批量导入 JSON。新农场首次进入会准备一株成熟引导作物。
-- 两座农场分别保存在浏览器，不会混用进度；可在设置中切换、导出和恢复备份。
+不配置环境变量也可以体验演示农场和本地玩法；聊天、知乎登录和个人收藏同步需要对应的服务端变量。
 
-## 本次改版
+## 环境变量
 
-- 100dvh 游戏视口：HUD、十块场景地块、刘看山、底部操作栏和原生对话框。
-- 点击空地随机播种；幼苗展示线索；成熟先预览，成功发起原帖新标签页打开后才计入收获。
-- 预览关闭、弹窗被拦截均不改变作物和重温进度。
-- 每株可浇水一次，缩短约 10% 时间；离线自动成长，没有枯萎或打卡。
-- 演示成熟约 80 秒，个人农场约 10 分钟，带小幅随机变化。演示快进移入设置。
-- 收获记录包含标题、来源、时间和再次打开入口。新轮次需先完成当前选中来源，历史记录保留。
-- V1 存档会迁移；原存档不删除。损坏存档不会被自动覆盖，可导出原始数据后在设置中重建。
-- 支持减少动态效果、键盘 Escape、对话框焦点限制和关闭后的焦点恢复。
+所有变量只配置在服务端环境，不要写进前端代码，也不要提交 '.env.local'。
 
-## 收藏导入
+### DeepSeek 聊天
 
-单篇导入只需标题和原帖链接。批量导入为 JSON 数组：
+~~~dotenv
+DEEPSEEK_API_KEY=你的服务端密钥
+DEEPSEEK_MODEL=deepseek-chat
+~~~
 
-```json
-[
-  {
-    "title": "替换为收藏的真实标题",
-    "url": "https://www.zhihu.com/question/123/answer/456",
-    "favlist": "想再读一遍",
-    "hint": "时间 · 日常 · 回忆",
-    "tags": ["生活"]
-  }
-]
-```
+每次发送消息时，前端会把当前农场快照发送到 '/api/chat'。服务端将快照放入本次请求的 system 消息，再调用 DeepSeek。快照包括收获数、回顾收藏数、当前作物数、成熟数、分类收获次数、登录状态等。
 
-示例链接仅说明格式，请换成自己的真实原帖。接受知乎回答和专栏文章的 HTTPS 永久链接。必填 title、url；其他字段可选；按规范化原帖链接去重。个人农场上限 500 篇；批量文件不超过 1 MB。不导入正文。
+### 知乎登录和收藏同步
 
-## 模块边界
+~~~dotenv
+APP_URL=http://localhost:3000
+ZHIHU_OAUTH_APP_ID=你的知乎 OAuth App ID
+ZHIHU_OAUTH_APP_KEY=你的知乎 OAuth App Key
+ZHIHU_OAUTH_REDIRECT_URI=http://localhost:3000/api/auth/zhihu/callback
+ZHIHU_ACCESS_SECRET=你的知乎 Access Secret
+~~~
 
-| 模块 | 职责 |
-| --- | --- |
-| lib/farm/model.ts | 可独立测试的玩法规则、去重、生长、轮次、成就 |
-| lib/farm/catalog.ts | 收藏元数据校验与合并，不执行不可信 URL |
-| lib/farm/storage.ts | V2 存档验证、旧版本迁移、链接目标验证 |
-| lib/farm-assets.ts | PNG/GIF 语义化清单、尺寸、回退、动画时间 |
-| components/farm/use-farm.ts | 本地存档控制器、命令、事件、原帖打开 |
-| components/farm/scene.tsx | 场景、地块、作物图层、角色动作与区域配置 |
-| components/farm/panels.tsx | 来源、预览、记录、帮助、地图、设置 |
-| components/farm/dialog.tsx | 原生 dialog 生命周期与焦点恢复 |
-| components/farm/game.tsx | 单一游戏壳与浮层路由 |
+'ZHIHU_OAUTH_REDIRECT_URI' 必须与知乎开放平台登记的回调地址完全一致。生产环境请改成部署域名对应的 HTTPS 地址。
 
-## 素材交付
+'SESSION_ENCRYPTION_KEY'、'CLOUDBASE_ENV_ID'、'CLOUDBASE_SECRET_ID' 和 'CLOUDBASE_SECRET_KEY' 已保留在示例模板中，当前代码不依赖它们才能运行；如果后续接入 CloudBase 数据库，再按部署方案配置。
 
-素材放到 public/assets/farm/，在 lib/farm-assets.ts 中更新对应条目。未交付素材使用 `available: false`，不会请求不存在的文件；提供文件后改为 `true` 或删除该字段。
+## 功能
 
-PNG 和 GIF 由同一组件加载：GIF → 静态 fallback → 内置图形。图片加载失败也会回退。减少动态效果时 GIF 使用静态图。现有 idle GIF 保留；新增透明 idle PNG 从其首帧提取。未交付的动作使用静态角色和 CSS 动作，场景与作物使用内置 SVG 占位，不依赖远程图片。
+- 演示农场：本地种植、浇水、成长、成熟和收获。
+- 个人农场：知乎 OAuth 登录后读取收藏夹和收藏条目元数据。
+- 收获记录、轮次、作物图鉴、成就和本地存档。
+- 演示农场和个人农场分开保存，不混用进度。
+- 刘看山连续对话、新建和删除会话。
+- 回车发送，Shift+Enter 换行；聊天消息接近底部时自动滚动。
+- LLM 明确知道自己看不到知乎原帖全文，只能依据农场统计和用户主动分享的内容回应。
+- 所有运行时图片和动画位于 'public/assets/'，不依赖远程素材。
 
-农场状态只保存 zoneId、assetFamily 等语义标识，不保存素材路径。区域清单预留东侧新田和山坡果园，本次不开放额外土地。
+## 项目结构
 
-## 验证
+~~~text
+app/
+  page.tsx                         页面入口
+  api/chat/route.ts                DeepSeek 服务端代理
+  api/auth/zhihu/*                 知乎 OAuth、回调、退出登录和状态
+  api/favlists/*                   知乎收藏夹同步
+components/farm/
+  game.tsx                         游戏壳和面板路由
+  use-farm.ts                      农场状态控制器和本地持久化
+  chat-panel.tsx                   聊天界面与会话历史
+  scene.tsx, panels.tsx, dialog.tsx UI 组件
+lib/farm/
+  model.ts                         纯农场规则和状态机
+  storage.ts                       存档校验、迁移和本地存储
+  catalog.ts                       收藏元数据校验与合并
+  chat-context.ts                  LLM 实时快照
+  chat-prompt.ts                   刘看山系统提示词
+public/assets/                     运行时素材
+scripts/test-core.cjs              核心玩法测试
+scripts/prepare-cloudbase-upload.ps1 CloudBase 上传包构建
+scf_bootstrap                      CloudBase HTTP 云函数启动入口
+~~~
 
-```powershell
-npm test
-npm run build
-```
+## 测试和构建
 
-如果开发服务器正在运行，用独立输出目录构建，避免相互覆盖：
+~~~powershell
+npm run lint       # TypeScript 类型检查
+npm test           # 核心玩法测试
+npm run build      # Next.js 生产构建
+~~~
 
-```powershell
+如果需要验证生产构建：
+
+~~~powershell
 $env:NEXT_DIST_DIR = ".next-verify"
 npm run build
-node node_modules/next/dist/bin/next start -p 3111
-```
+~~~
 
-默认构建仍输出 .next，兼容现有 CloudBase 打包脚本。
+## CloudBase 部署
 
-浏览器回归脚本 `scripts/qa-browser.cjs` 使用 Playwright 和本机 Chrome；默认访问 http://localhost:3111。设置 PLAYWRIGHT_PACKAGE 为已安装的 playwright 包路径，QA_OUTPUT 为截图输出目录。脚本拦截外部知乎导航，仅验证目的链接和收获动作，不访问真实帖子。覆盖 1440×900、1366×768、390×844、375×667、667×375。
+先构建上传目录：
 
-## 真实知乎同步的边界
+~~~powershell
+npm run package:cloudbase
+~~~
 
-当前可运行的是本地农场与手动收藏导入。OAuth 路由仍为明确返回 503/501 的占位接口，**尚未实现账号授权、收藏夹自动读取、CloudBase 持久化和跨设备同步**。不应把填写环境变量或部署当作已完成接入。
+脚本会生成一个类似 '.cloudbase-upload-YYYYMMDD-HHmmss' 的目录，包含：
 
-真实服务接入时需按《技术实现文档》实现服务端会话、ZhihuGateway、账号隔离的数据库与农场事务接口；前端控制器替换存取实现，保留玩法和素材组件。鉴权与密钥只留在服务端。
+- '.next'
+- 'public'
+- 'package.json'
+- 'package-lock.json'
+- 'next.config.mjs'
+- 'scf_bootstrap'
 
-部署步骤参见《部署操作手册》，本轮没有发布到外部环境。
+将该目录部署为 CloudBase HTTP 云函数，并在同一个云函数环境中配置 'DEEPSEEK_API_KEY'、知乎 OAuth 变量和 'APP_URL'。修改变量后需要重新发布或重启云函数。
+
+部署后可检查：
+
+- '/api/health' 返回 '{"ok":true,...}'；
+- '/api/chat' 不应返回 404；
+- 未配置 'DEEPSEEK_API_KEY' 时返回 503；
+- DeepSeek 暂时过载时会返回上游错误，稍后重试即可。
+
+## 数据与边界
+
+农场进度和聊天记录默认保存在浏览器 localStorage，没有内置数据库同步。知乎同步读取的是收藏夹和收藏条目的元数据，不注入帖子正文。原始设计稿和导出素材不参与运行，已排除在 Git 仓库之外；运行时所需素材只保留在 'public/assets/'。
+
+## 安全
+
+- 不要提交 '.env.local'、API Key、OAuth Secret、Cookie 或本地存档。
+- DeepSeek 和知乎凭证只能放在服务端环境变量。
+- 推送前检查 'git status --ignored' 和 'git diff --check'。

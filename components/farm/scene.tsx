@@ -15,16 +15,40 @@ function ImageLayer({ asset, fallback }: { asset: AssetRef; fallback: ReactNode 
   const [failed, setFailed] = useState<string[]>([]), [loaded, setLoaded] = useState("");
   const src = [preferred, asset.fallback].find((s): s is string => !!s && !failed.includes(s));
   const picture = asset.portrait && !failed.includes(asset.portrait.src);
-  return <>{(!src || loaded !== src) && fallback}{src && <picture>
+  // SVG is a true error fallback. During loading, the transparent image keeps
+  // the layout box stable without flashing a second visual style.
+  return <>{!src && fallback}{src && <picture>
     {picture && <source media="(orientation: portrait)" srcSet={asset.portrait!.src} width={asset.portrait!.width} height={asset.portrait!.height}/>}
     <img key={src} src={src} alt={asset.alt ?? ""} width={asset.width} height={asset.height} draggable={false}
       onLoad={() => setLoaded(src)}
-      onError={e => { const actual = e.currentTarget.currentSrc; setFailed(old => [...old, picture && actual.endsWith(asset.portrait!.src) ? asset.portrait!.src : src]); }}
-      style={{ opacity: loaded === src ? 1 : 0 }}/>
+      onError={e => { const actual = e.currentTarget.currentSrc; const failedSrc = picture && actual.endsWith(asset.portrait!.src) ? asset.portrait!.src : src; setFailed(old => old.includes(failedSrc) ? old : [...old, failedSrc]); }}
+      decoding="async"
+      loading={asset.width >= 1000 ? "eager" : "lazy"}
+      fetchPriority={asset.width >= 1000 ? "high" : "auto"}
+      style={{ opacity: loaded === src ? 1 : 0, transition: "opacity .16s ease" }}/>
   </picture>}</>;
 }
 export function AssetImage({ asset, fallback, className = "" }: { asset: AssetRef; fallback: ReactNode; className?: string }) {
-  return <span className={"asset-image " + className}><ImageLayer key={asset.src} asset={asset} fallback={fallback} /></span>;
+  // Keep the currently visible asset mounted while the next growth-stage
+  // bitmap is fetched. The swap happens only after the browser reports load.
+  const [displayed, setDisplayed] = useState(asset);
+  useEffect(() => {
+    if (displayed.src === asset.src && displayed.fallback === asset.fallback) return;
+    const nextSrc = asset.available === false ? asset.fallback : asset.src;
+    if (!nextSrc) {
+      setDisplayed(asset);
+      return;
+    }
+    let cancelled = false;
+    const image = new window.Image();
+    image.decoding = "async";
+    image.onload = () => { if (!cancelled) setDisplayed(asset); };
+    // A failed candidate must not evict the working image; ImageLayer keeps
+    // its own SVG fallback for the initial render, while transitions retain\n    // the previous stage until a replacement is confirmed.
+    image.src = nextSrc;
+    return () => { cancelled = true; };
+  }, [asset.src, asset.fallback, asset.available, displayed.src, displayed.fallback]);
+  return <span className={"asset-image " + className}><ImageLayer asset={displayed} fallback={fallback} /></span>;
 }
 export const zones: FarmZone[] = [
   { id: "main-field", name: "主农场", unlocked: true, background: farmAssets.scenes.main, plotCount: 10, assetFamily: "default" },
@@ -74,17 +98,17 @@ export function Plot({ index, crop, now, onClick, event }: { index: number; crop
   </button>;
 }
 const actionFor = mascotActionForEvent;
-export function Mascot({ event, matureCount }: { event: FarmEvent | null; matureCount: number }) {
+export function Mascot({ event, matureCount, onOpen }: { event: FarmEvent | null; matureCount: number; onOpen?: () => void }) {
   const action = event ? actionFor[event.type] : "idle";
   const asset = farmAssets.mascot[action] ?? farmAssets.mascot.idle;
   const message = event?.type === "PLANT" ? "种好啦，等它慢慢长大。" : event?.type === "CARE" ? "收到一小份关心。" : event?.type === "HARVEST" ? "又遇见了过去的自己。" : matureCount ? "有回忆成熟啦，要看看吗？" : "你忙你的，这里有我。";
-  return <div className={"mascot mascot-" + action}><div className="mascot-bubble"><small>刘看山说</small><p>{message}</p></div><div className="mascot-character" key={event?.at ?? "idle"}><AssetImage asset={asset} fallback={<span className="mascot-placeholder">看山</span>} /></div></div>;
+  return <div className={"mascot mascot-" + action + (onOpen ? " mascot-interactive" : "")} onClick={onOpen} onKeyDown={e => { if (onOpen && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }} role={onOpen ? "button" : undefined} tabIndex={onOpen ? 0 : undefined} aria-label={onOpen ? "和刘看山聊聊" : undefined}><div className="mascot-bubble"><small>刘看山说</small><p>{message}</p></div><div className="mascot-character" key={event?.at ?? "idle"}><AssetImage asset={asset} fallback={<span className="mascot-placeholder">看山</span>} /></div></div>;
 }
-export function FarmScene({ crops, now, event, onPlot, onMap }: { crops: Crop[]; now: number; event: FarmEvent | null; onPlot: (plot: number) => void; onMap: () => void }) {
+export function FarmScene({ crops, now, event, onPlot, onMap, onChat }: { crops: Crop[]; now: number; event: FarmEvent | null; onPlot: (plot: number) => void; onMap: () => void; onChat?: () => void }) {
   const zone = zones[0];
   return <section className="farm-scene" aria-label="主农场，共十块地">
     <div className="field-area"><div className="field-boundary"/><div className="field" aria-label="十块可交互地块">{Array.from({ length: zone.plotCount }, (_, index) => <Plot key={index} index={index} crop={crops.find(c => c.plot === index)} now={now} event={event} onClick={() => onPlot(index)} />)}</div></div>
-    <Mascot event={event} matureCount={crops.filter(c => stageOf(c, now) === "mature").length} />
+    <Mascot event={event} matureCount={crops.filter(c => stageOf(c, now) === "mature").length} onOpen={onChat} />
     <button className="zone-sign" onClick={onMap}><span><Icon name="trophy" />作物图鉴</span><small>查看收获成就 <Icon name="arrow" /></small></button>
   </section>;
 }

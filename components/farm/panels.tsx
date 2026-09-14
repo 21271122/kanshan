@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ContentItem, Crop, FarmState, Mode, growthOf, remainingMs, roundProgress, stageOf } from "../../lib/farm/model";
+import { ContentItem, Crop, FarmState, Mode, growthOf, memorialFamilyKey, remainingMs, roundProgress, stageOf } from "../../lib/farm/model";
 import { Dialog } from "./dialog";
 import { Icon } from "./icon";
 import { AssetImage, CropDrawing, zones } from "./scene";
@@ -50,9 +50,14 @@ export function HelpPanel({ onClose }: { onClose: () => void }) {
   return <Dialog title="来这里，不用赶时间" eyebrow="看山的农场小手册" onClose={onClose}><div className="help-steps">{[{ icon: "folder" as const, title: "选好回忆的来处", text: "登录知乎后自动读取收藏夹，默认全部选中。" }, { icon: "leaf" as const, title: "空地一按，种下惊喜", text: "随机挑一篇未重温的收藏，发芽后会慢慢透露线索。" }, { icon: "spark" as const, title: "长好了，再见一面", text: "点击成熟果实预览。打开原帖才计入收获，不要求读完。" }].map(step => <div key={step.title}><span><Icon name={step.icon} /></span><div><h3>{step.title}</h3><p>{step.text}</p></div></div>)}</div><div className="gentle-note"><Icon name="water" /><p>你不在的时候，看山也会照料。<br/>没有枯萎、打卡或错过奖励。</p></div></Dialog>;
 }
 export function AchievementPanel({ farm, onClose }: { farm: FarmState; onClose: () => void }) {
+  const [flipped, setFlipped] = useState<Record<string, boolean>>({});
   const varieties = [{name:"小白菜",family:"autumn-cabbage",img:"/assets/farm/crops/autumn-cabbage/mature.png"},{name:"樱桃萝卜",family:"autumn-radish",img:"/assets/farm/crops/autumn-radish/mature.png"},{name:"牵牛花",family:"autumn-morning-glory",img:"/assets/farm/crops/autumn-morning-glory/mature.png"},{name:"花椰菜",family:"autumn-cauliflower",img:"/assets/farm/crops/autumn-cauliflower/mature.png"},{name:"葡萄",family:"autumn-grape",img:"/assets/farm/crops/autumn-grape/mature.png"},{name:"菠菜",family:"spring-spinach",img:"/assets/farm/crops/spring-spinach/mature.png"},{name:"草莓",family:"spring-strawberry",img:"/assets/farm/crops/spring-strawberry/mature.png"},{name:"三色堇",family:"spring-pansy",img:"/assets/farm/crops/spring-pansy/mature.png"},{name:"西红柿",family:"spring-tomato",img:"/assets/farm/crops/spring-tomato/mature.png"},{name:"豌豆苗",family:"spring-pea-shoot",img:"/assets/farm/crops/spring-pea-shoot/mature.png"}];
-  const collected = new Set(farm.log.map(entry => entry.assetFamily).filter(Boolean));
-  return <Dialog title="每一次收获，都有新发现" eyebrow="作物图鉴" onClose={onClose} wide><p className="muted">解锁后会显示种植纪念贴图，未解锁的贴图会被黑色蒙版遮住。</p><div className="achievement-gallery">{varieties.map(v => { const earned = collected.has(v.family); return <div key={v.family} className={"achievement-card sticker-card " + (earned ? "earned" : "locked")}><div className="sticker-frame"><img src={v.img} alt={v.name + "种植纪念贴图"}/>{!earned && <span className="sticker-mask"><Icon name="lock"/></span>}</div><strong>{v.name}</strong><small>{earned ? "已解锁 · 种植纪念" : "收获后解锁"}</small></div>})}</div></Dialog>;
+  const harvestCounts = new Map<string, number>();
+  for (const entry of farm.log) {
+    const key = memorialFamilyKey(entry.assetFamily);
+    harvestCounts.set(key, (harvestCounts.get(key) ?? 0) + 1);
+  }
+  return <Dialog title="每一次收获，都有新发现" eyebrow="作物图鉴" onClose={onClose} wide><p className="muted">收获一次即可点亮作物；累计收获三次后，才可翻转查看种植纪念。</p><div className="achievement-gallery">{varieties.map(v => { const key = memorialFamilyKey(v.family); const harvestCount = harvestCounts.get(key) ?? 0; const earned = harvestCount > 0; const memorialReady = harvestCount >= 3 && farm.achievements.includes("memorial:" + key); const isFlipped = memorialReady && !!flipped[v.family]; const sticker = memorialStickers[v.family]; return <div key={v.family} className={"achievement-card sticker-card " + (earned ? "earned" : "locked")}><button type="button" className={"sticker-flip " + (isFlipped ? "is-flipped " : "") + (earned && !memorialReady ? "memorial-locked" : "")} disabled={!memorialReady} aria-label={memorialReady ? (isFlipped ? "查看" + v.name + "成熟图" : "查看" + v.name + "种植纪念") : earned ? v.name + "已点亮，累计收获" + harvestCount + "次，收获3次后可查看纪念" : v.name + "尚未解锁"} aria-pressed={memorialReady && isFlipped} onClick={() => memorialReady && setFlipped(old => ({ ...old, [v.family]: !old[v.family] }))}><span className="sticker-face sticker-front"><img src={v.img} alt={v.name + "成熟图"}/></span><span className="sticker-face sticker-back"><img src={sticker?.src ?? v.img} alt={v.name + "种植纪念贴图"}/></span>{!earned && <span className="sticker-mask"><Icon name="lock"/></span>}</button><strong>{v.name}</strong><small>{memorialReady ? (isFlipped ? "种植纪念 · 点击翻回" : "累计3次 · 点击查看纪念") : earned ? "已点亮 · 已收获" + harvestCount + "/3 次" : "收获后解锁"}</small></div>})}</div></Dialog>;
 }
 const memorialStickers: Record<string, { name: string; src: string }> = {
   "autumn-cabbage": { name: "小白菜", src: "/assets/farm/stickers/autumn-cabbage.png" },

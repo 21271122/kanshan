@@ -1,9 +1,61 @@
-node_modules
-.next
-.env.local
-.env
-*.log
+# dependencies
+node_modules/
 
-.next-verify/
-qa-output/
+# Next.js build output
+.next/
+.next-*/
+out/
+dist/
+build/
+
+# TypeScript and test artifacts
 *.tsbuildinfo
+coverage/
+qa-output/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and local runtime files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# CloudBase/generated upload packages
+.cloudbase-upload-*/
+
+# Local inspection and QA directories
+.zhihu-skill-inspect/
+.next-asset-qa/
+.next-fertilizer-qa/
+.next-final-qa/
+.next-oauth-check/
+.next-revert/
+.next-verify*/
+
+# Archives and OS metadata
+/*.zip
+__MACOSX/
+.DS_Store
+Thumbs.db
+
+# Editor and temporary files
+.vscode/
+.idea/
+*.tmp
+*.temp
+*.bak
+
+# Source-only design exports and reference files (runtime assets live in public/)
+/素材/
+/秋/
+/刘看山动态/
+/看山三视图/
+
+# Local planning notes not required to run the application
+/产品说明计划书.md
+/第一阶段账号隔离与收藏同步改造文档.md

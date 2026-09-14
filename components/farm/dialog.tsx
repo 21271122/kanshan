@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { Icon } from "./icon";
 
-export function Dialog({ title, eyebrow, children, onClose, wide = false }: { title: string; eyebrow?: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
+export function Dialog({ title, eyebrow, children, onClose, wide = false, headerActions, onTitleClick, titleExpanded }: { title: string; eyebrow?: string; children: ReactNode; onClose: () => void; wide?: boolean; headerActions?: ReactNode; onTitleClick?: () => void; titleExpanded?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null), titleId = useId();
   const closeRef = useRef(onClose); closeRef.current = onClose;
   useEffect(() => {
@@ -25,7 +25,7 @@ export function Dialog({ title, eyebrow, children, onClose, wide = false }: { ti
       const b = e.currentTarget.getBoundingClientRect();
       if (e.clientX < b.left || e.clientX > b.right || e.clientY < b.top || e.clientY > b.bottom) onClose();
     }}>
-    <header className="dialog-header"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}<h2 id={titleId}>{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="关闭浮窗" autoFocus><Icon name="close" /></button></header>
+    <header className="dialog-header"><div>{eyebrow && <p className="eyebrow">{eyebrow}</p>}{onTitleClick ? <button type="button" className="dialog-title-toggle" onClick={onTitleClick} aria-expanded={titleExpanded} aria-controls="chat-conversation-list"><span id={titleId} role="heading" aria-level={2}>{title}</span></button> : <h2 id={titleId}>{title}</h2>}</div><div className="dialog-header-actions">{headerActions}<button className="icon-button" onClick={onClose} aria-label="关闭浮窗" autoFocus><Icon name="close" /></button></div></header>
     <div className="dialog-body">{children}</div>
   </dialog>;
 }
